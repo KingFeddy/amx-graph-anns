@@ -3,7 +3,7 @@
 Characterizing and accelerating graph-based approximate nearest
 neighbor search with Intel AMX.
 
-NJIT Honors Summer Research Initiative 2025
+NJIT Honors Summer Research Initiative 2026
 Advisor: Prof. Xiaoning Ding
 
 ---
