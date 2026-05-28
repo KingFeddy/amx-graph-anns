@@ -11,3 +11,8 @@ __pycache__/
 *.pyc
 anns_env/
 build/
+vamana_instrumented/vamana_instrumented_search
+vamana_instrumented/vamana_sift
+vamana_instrumented/vamana_sift.data
+faiss_instrumented/faiss_instrumented_search
+faiss_instrumented/faiss_hnsw_m16.bin
