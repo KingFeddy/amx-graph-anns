@@ -19,14 +19,14 @@ def load_fvecs(path, max_n=-1):
     return np.array(data)
 
 def main():
-    base_path  = sys.argv[1] if len(sys.argv) > 1 else \
+    base_path = sys.argv[1] if len(sys.argv) > 1 else \
         "/home/kingfeddy/repos/anns_research/sift/sift_base.fvecs"
     query_path = sys.argv[2] if len(sys.argv) > 2 else \
         "/home/kingfeddy/repos/anns_research/sift/sift_query.fvecs"
 
-    DIM      = 128
-    NLIST    = 1024
-    NPROBES  = [8, 16, 32, 64, 128]
+    DIM = 128
+    NLIST = 1024
+    NPROBES = [8, 16, 32, 64, 128]
     N_QUERIES = 1000
 
     print("Loading base vectors...")
@@ -49,33 +49,24 @@ def main():
     for nprobe in NPROBES:
         index.nprobe = nprobe
 
-        # get cluster assignments for all queries
-        # quantizer.search returns top nprobe cluster IDs per query
         D, I = quantizer.search(queries, nprobe)
 
-        # count how many queries probe each cluster
         cluster_counts = np.zeros(NLIST, dtype=int)
         for q in range(N_QUERIES):
             for c in I[q]:
                 cluster_counts[c] += 1
 
-	# cluster sharing analysis
         probed_clusters = cluster_counts[cluster_counts > 0]
         total_probings = N_QUERIES * nprobe
         unique_clusters = len(probed_clusters)
 
-        # sharing rate: fraction of cluster probings that are redundant
         sharing_rate = 1.0 - unique_clusters / total_probings
-
-        # avg queries per probed cluster
         avg_queries_per_cluster = probed_clusters.mean()
-
-        # fraction of clusters shared by N+ queries
         pct_shared_2plus = (probed_clusters >= 2).mean() * 100
         pct_shared_4plus = (probed_clusters >= 4).mean() * 100
         pct_shared_8plus = (probed_clusters >= 8).mean() * 100
 
-	results.append({
+        results.append({
             "nprobe": nprobe,
             "probed_clusters": unique_clusters,
             "avg_queries_per_cluster": avg_queries_per_cluster,
@@ -85,7 +76,7 @@ def main():
             "pct_shared_8plus": pct_shared_8plus,
         })
 
-        print(f"  nprobe={nprobe}: {len(probed_clusters)} clusters probed, "
+        print(f"  nprobe={nprobe}: {unique_clusters} clusters probed, "
               f"avg {avg_queries_per_cluster:.1f} queries/cluster, "
               f"sharing={sharing_rate:.3f}")
 
@@ -93,21 +84,22 @@ def main():
     print("\n", res.to_string(index=False))
     res.to_csv("results/ivf_sharing.csv", index=False)
 
-    # plot sharing rate vs nprobe
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(
         "IVF Cluster Sharing Across 1000 Queries — SIFT1M, nlist=1024",
         fontsize=13
     )
 
-    ax1.plot(res["nprobe"], res["sharing_rate"] * 100, "b-o", markersize=8, linewidth=2)
+    ax1.plot(res["nprobe"], res["sharing_rate"] * 100,
+             "b-o", markersize=8, linewidth=2)
     ax1.set_xlabel("nprobe", fontsize=11)
     ax1.set_ylabel("Cluster Sharing Rate (%)", fontsize=11)
     ax1.set_title("Sharing Rate vs nprobe", fontsize=12)
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim(bottom=0)
 
-    ax2.plot(res["nprobe"], res["avg_queries_per_cluster"], "r-o", markersize=8, linewidth=2)
+    ax2.plot(res["nprobe"], res["avg_queries_per_cluster"],
+             "r-o", markersize=8, linewidth=2)
     ax2.set_xlabel("nprobe", fontsize=11)
     ax2.set_ylabel("Avg Queries per Probed Cluster", fontsize=11)
     ax2.set_title("Avg Queries per Cluster vs nprobe", fontsize=12)
