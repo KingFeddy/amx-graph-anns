@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
 
     diskann::Index<float> index(diskann::Metric::L2, DIM, N, std::make_shared<diskann::IndexWriteParameters>(params), search_params);
 
-    std::string index_file = index_path + ".index";
+    std::string index_file = index_path;
     std::ifstream idx_check(index_file);
     if (idx_check.good()) {
         idx_check.close();
