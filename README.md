@@ -66,19 +66,57 @@ window exists for hops 0 through 4.
 
 ---
 
+## Phase 3: Faiss IVF (Baseline Validation)
+
+**Algorithm:** IVF (Inverted File Index)
+**Library:** Faiss (Meta)
+**Dataset:** SIFT1M, 1M vectors, d=128
+**Parameters:** nlist=1024, nprobe sweep [8, 16, 32, 64, 128]
+**Queries:** 1000
+
+**Result:**
+
+| nprobe | Sharing Rate | Clusters shared by 2+ | Clusters shared by 8+ |
+|--------|-------------|----------------------|----------------------|
+| 8      | 87.3%       | 97.3%                | 47.6%                |
+| 16     | 93.6%       | 99.7%                | 85.3%                |
+| 32     | 96.8%       | 99.9%                | 96.1%                |
+| 64     | 98.4%       | 100%                 | 99.4%                |
+| 128    | 99.2%       | 100%                 | 100%                 |
+
+IVF shows extremely high cluster sharing across all nprobe values.
+At nprobe=32, essentially all cluster accesses are shared by 2+
+queries, enabling near-perfect GEMM batching. This confirms CABANA's
+findings on SIFT1M and validates our measurement methodology.
+
+![IVF Cluster Sharing](results/ivf_sharing.png)
+
+---
+
 ## Key Finding
 
-The two algorithms show fundamentally different batching opportunity
-profiles driven by their entry point mechanisms.
+Three algorithms show fundamentally different batching opportunity
+profiles:
 
-Vamana uses a single fixed medoid as the entry point for all queries.
-Every query starts from the same node, creating near-perfect sharing
-in early hops before paths diverge.
+| Algorithm | Max Sharing | AMX Opportunity |
+|-----------|-------------|-----------------|
+| IVF | 87-99% | Extremely high |
+| Vamana | 99.9% at hop 0, H_AMX=4 | Strong in early hops |
+| HNSW | 6.5% at hop 0, H_AMX=0 | Negligible |
 
-HNSW uses a hierarchical design where queries descend through upper
-layers before reaching layer 0. This descent sends each query to a
-different entry point, eliminating sharing before the main search
-even begins.
+IVF has near-perfect sharing because its cluster structure guarantees
+multiple queries probe the same vectors. This confirms CABANA and
+validates our measurement methodology.
+
+Vamana has strong sharing in early hops because all queries start
+from the same fixed medoid node. At hop 0, all 1000 queries evaluate
+the exact same 32 neighbors giving 99.9% sharing. Paths diverge
+rapidly, dropping below 5% by hop 5.
+
+HNSW has negligible sharing because its hierarchical design runs a
+greedy descent through upper layers before layer 0 search begins.
+This disperses queries to different entry points, eliminating sharing
+before the main search even starts.
 
 **Implication:** Vamana is the primary target for AMX acceleration.
 The batch controller will exploit the H_AMX=4 window by fusing
@@ -91,8 +129,8 @@ back to per-query GEMV beyond that depth.
 
 ## Repository Structure
 
-- `faiss_instrumented/`   Phase 1 instrumentation and driver
-- `vamana_instrumented/`  Phase 2 instrumentation and driver
-- `analysis/`             Decay curve analysis and plotting scripts
-- `results/`              Output CSVs and figures
+- `faiss_instrumented/`   Faiss HNSW instrumentation patch and C++ driver
+- `vamana_instrumented/`  DiskANN Vamana instrumentation patch and C++ driver
+- `analysis/`             Decay curve analysis, IVF sharing analysis, and plotting scripts
+- `results/`              Output CSVs and figures for all three algorithms
 - `notes/`                Paper drafts and meeting notes
