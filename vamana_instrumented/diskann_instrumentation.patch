@@ -1,0 +1,60 @@
+diff --git a/include/ann_exception.h b/include/ann_exception.h
+index 6b81373c..83edbf8f 100644
+--- a/include/ann_exception.h
++++ b/include/ann_exception.h
+@@ -5,6 +5,7 @@
+ #include <string>
+ #include <stdexcept>
+ #include <system_error>
++#include <cstdint>
+ #include "windows_customizations.h"
+ 
+ #ifndef _WINDOWS
+diff --git a/src/index.cpp b/src/index.cpp
+index 486d41e7..b458ba6b 100644
+--- a/src/index.cpp
++++ b/src/index.cpp
+@@ -4,6 +4,7 @@
+ #include <omp.h>
+ 
+ #include <type_traits>
++#include <vector>
+ 
+ #include "boost/dynamic_bitset.hpp"
+ #include "index_factory.h"
+@@ -25,6 +26,19 @@
+ 
+ #define MAX_POINTS_FOR_USING_BITSET 10000000
+ 
++// Logs hop-level distance computations to measure AMX batching
++// opportunity across concurrent queries
++struct VamanaHopEntry {
++    int query_id;
++    int hop;
++    int node_id;
++};
++
++std::vector<VamanaHopEntry> vamana_hop_log;
++bool vamana_instr_enabled = false;
++thread_local int vamana_current_qid = -1;
++
++
+ namespace diskann
+ {
+ // Initialize an index with metric m, load the data of type T with filename
+@@ -961,7 +975,14 @@ std::pair<uint32_t, uint32_t> Index<T, TagT, LabelT>::iterate_to_fixed_point(
+         }
+ 
+         assert(dist_scratch.capacity() >= id_scratch.size());
+-        compute_dists(id_scratch, dist_scratch);
++        
++	// Batching opportunity decay measurement
++        if (vamana_instr_enabled) {
++            for (auto id : id_scratch) {
++                vamana_hop_log.push_back({vamana_current_qid, (int)hops, (int)id});
++            }
++        }
++	compute_dists(id_scratch, dist_scratch);
+         cmps += (uint32_t)id_scratch.size();
+ 
+         // Insert <id, dist> pairs into the pool of candidates
