@@ -1,0 +1,13 @@
+*.o
+*.a
+*.so
+*.bin
+*.fvecs
+*.ivecs
+*.bvecs
+faiss_hop_log.csv
+vamana_hop_log.csv
+__pycache__/
+*.pyc
+anns_env/
+build/
