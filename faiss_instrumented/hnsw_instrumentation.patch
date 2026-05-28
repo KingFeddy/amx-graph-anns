@@ -1,0 +1,92 @@
+diff --git a/faiss/impl/HNSW.cpp b/faiss/impl/HNSW.cpp
+index 200e42fa0..b8c94bb00 100644
+--- a/faiss/impl/HNSW.cpp
++++ b/faiss/impl/HNSW.cpp
+@@ -19,6 +19,15 @@
+ #include <faiss/impl/VisitedTable.h>
+ #include <faiss/impl/hnsw/MinimaxHeap.h>
+ 
++// Definitions
++namespace faiss_instr {
++
++std::vector<HNSWHopEntry> hnsw_hop_log;
++bool hnsw_instr_enabled = false;
++thread_local int hnsw_current_qid = -1;
++
++}
++
+ namespace faiss {
+ 
+ /**************************************************************
+@@ -654,7 +663,7 @@ int search_from_candidates(
+     }
+ 
+     int nstep = 0;
+-
++    int _instr_hop = 0; //hop depth counter
+     while (candidates.size() > 0) {
+         float d0 = 0;
+         int v0 = candidates.pop_min(&d0);
+@@ -726,6 +735,15 @@ int search_from_candidates(
+                 }
+ 
+                 ndis += 4;
++		
++		// For instrumentation
++		if (faiss_instr::hnsw_instr_enabled && level == 0) {
++                    for (size_t id4 = 0; id4 < 4; id4++) {
++                        faiss_instr::hnsw_hop_log.push_back(
++                            {faiss_instr::hnsw_current_qid, _instr_hop, (int)saved_j[id4]}
++                        );
++                    }
++                }
+ 
+                 counter = 0;
+             }
+@@ -736,9 +754,17 @@ int search_from_candidates(
+             add_to_heap(saved_j[icnt], dis);
+ 
+             ndis += 1;
++
++	    // For instrumentation
++	    if (faiss_instr::hnsw_instr_enabled && level == 0) {
++                faiss_instr::hnsw_hop_log.push_back(
++                    {faiss_instr::hnsw_current_qid, _instr_hop, (int)saved_j[icnt]}
++                );
++            }
+         }
+ 
+         nstep++;
++        _instr_hop++;
+         if (!do_dis_check && nstep > efSearch) {
+             break;
+         }
+diff --git a/faiss/impl/HNSW.h b/faiss/impl/HNSW.h
+index 9c4e581b5..34d787631 100644
+--- a/faiss/impl/HNSW.h
++++ b/faiss/impl/HNSW.h
+@@ -20,6 +20,24 @@
+ #include <faiss/utils/Heap.h>
+ #include <faiss/utils/random.h>
+ 
++// Batching opportunity decay study
++#include <vector>
++
++namespace faiss_instr {
++
++struct HNSWHopEntry {
++    int query_id;
++    int hop;
++    int node_id;
++};
++
++extern std::vector<HNSWHopEntry> hnsw_hop_log;
++extern bool hnsw_instr_enabled;
++extern thread_local int hnsw_current_qid;
++
++}
++
++
+ namespace faiss {
+ 
+ // Forward declarations to avoid circular dependency.
