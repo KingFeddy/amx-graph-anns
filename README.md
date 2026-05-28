@@ -30,8 +30,11 @@ a single AMX GEMM operation instead of computed independently.
 **Queries:** 1000
 
 **Result:**
+
 Sharing rate at hop 0: 6.47%
+
 H_AMX at 5% threshold: 0
+
 Max hop depth: 103
 
 Sharing never exceeds the AMX efficiency threshold at any depth.
@@ -57,12 +60,19 @@ Faiss HNSW in its current form.
 **Queries:** 1000
 
 **Result:**
+
 Sharing rate at hop 0: 99.9%
+
 Sharing rate at hop 1: 97.4%
+
 Sharing rate at hop 2: 76.9%
+
 Sharing rate at hop 3: 30.3%
+
 Sharing rate at hop 4: 8.5%
+
 H_AMX at 5% threshold: 4
+
 Max hop depth: 107
 
 All 1000 queries start from the same fixed medoid node and evaluate
