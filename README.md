@@ -20,9 +20,13 @@ a single AMX GEMM operation instead of computed independently.
 ## Phase 1: Faiss IndexHNSWFlat
 
 **Algorithm:** HNSW
+
 **Library:** Faiss
+
 **Dataset:** SIFT1M, 1M vectors, d=128
+
 **Parameters:** M=16, ef_construction=200, ef_search=100
+
 **Queries:** 1000
 
 **Result:**
@@ -43,9 +47,13 @@ Faiss HNSW in its current form.
 ## Phase 2: DiskANN Vamana
 
 **Algorithm:** Vamana
+
 **Library:** DiskANN
+
 **Dataset:** SIFT1M, 1M vectors, d=128
+
 **Parameters:** R=32, L_build=125, alpha=1.2, L_search=100
+
 **Queries:** 1000
 
 **Result:**
@@ -69,9 +77,13 @@ window exists for hops 0 through 4.
 ## Phase 3: Faiss IVF (Baseline Validation)
 
 **Algorithm:** IVF
+
 **Library:** Faiss
+
 **Dataset:** SIFT1M, 1M vectors, d=128
+
 **Parameters:** nlist=1024, nprobe sweep [8, 16, 32, 64, 128]
+
 **Queries:** 1000
 
 **Result:**
