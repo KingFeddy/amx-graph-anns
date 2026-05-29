@@ -4,6 +4,7 @@ Characterizing and accelerating graph-based approximate nearest
 neighbor search with Intel AMX.
 
 NJIT Honors Summer Research Initiative 2026
+
 Advisor: Prof. Xiaoning Ding
 
 ---
@@ -156,3 +157,73 @@ back to per-query GEMV beyond that depth.
 - `analysis/`             Decay curve analysis, IVF sharing analysis, and plotting scripts
 - `results/`              Output CSVs and figures for all three algorithms
 - `notes/`                Paper drafts and meeting notes
+
+---
+
+## Phase 4: Granite Rapids Hardware Validation
+
+**Hardware:** Intel Xeon 6767P (Granite Rapids), 256 cores, 251GB RAM
+**AMX:** amx_bf16, amx_tile, amx_int8 confirmed
+
+### Vamana Threading Baseline
+
+| Threads | QPS | Recall@10 |
+|---------|-----|-----------|
+| 1 | 4,589 | 99.14% |
+| 2 | 8,566 | 99.14% |
+| 4 | 12,915 | 99.14% |
+| 8 | 23,093 | 99.14% |
+| 16 | 43,377 | 99.14% |
+| 32 | 80,211 | 99.14% |
+| 64 | 142,097 | 99.14% |
+| 128 | 176,259 | 99.14% |
+| 256 | 109,964 | 99.14% |
+
+Peak throughput at 128 threads (176,259 QPS). Performance degrades
+at 256 threads due to memory bandwidth saturation, confirming
+graph ANNS is memory-bound. AMX batching targets this bottleneck
+by increasing compute intensity per memory load.
+
+### IVF Threading Baseline
+
+| nprobe | QPS | Recall@10 |
+|--------|-----|-----------|
+| 1 | 204,491 | 0.9490 |
+| 4 | 363,840 | 1.0000 |
+| 8 | 181,729 | 1.0000 |
+| 16 | 94,536 | 1.0000 |
+| 32 | 48,436 | 1.0000 |
+| 64 | 25,146 | 1.0000 |
+| 128 | 11,901 | 1.0000 |
+
+Peak throughput at nprobe=4 (363,840 QPS) with perfect recall.
+IVF is ~2x faster than Vamana at matched high recall, confirming
+cluster structure enables better hardware utilization than graph
+traversal.
+
+### AMX GEMM Validation
+
+Standalone GEMM benchmark confirms AMX tile instructions are
+operational on Granite Rapids:
+
+- 47x speedup over naive triple-loop at batch size 32
+- Correctness verified: max absolute difference 0.000008 (PASS)
+- Cache boundary discovered at batch 64: sub-32 batches are
+  cache-resident at ~2us, batches 64+ pay a fixed ~12us memory
+  cost but GFLOPS scales continuously to 3440 at batch 10000
+  with no plateau visible
+
+**Implication for batch controller:** two operating regimes exist.
+Fire at batch <=32 for latency-sensitive workloads. Accumulate
+1000+ queries for maximum throughput.
+
+### H_AMX Confirmation
+
+Vamana decay curves regenerated on Granite Rapids confirm H_AMX=4
+matches IdeaPad results exactly. Sharing rate is a property of
+the algorithm and dataset, not the hardware.
+
+---
+- `amx/`                  Standalone AMX GEMM validation and batch scaling tests
+- `ivf_baseline/`         IVF baseline driver for Granite Rapids
+- `results/granite_rapids/` Baseline QPS numbers and decay curves on Granite Rapids
