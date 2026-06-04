@@ -11,10 +11,9 @@ Advisor: Prof. Xiaoning Ding
 
 ## Research Question
 
-When multiple queries run simultaneously through a graph-based ANNS
-index, do they evaluate the same neighbor nodes at the same traversal
-depth? If so, those redundant distance computations can be fused into
-a single AMX GEMM operation instead of computed independently.
+Can the AMX query-batching approach proven for IVF-based ANNS in CABANA
+be extended to graph-based ANNS, and what graph structural properties
+determine the feasibility and magnitude of that acceleration?
 
 ---
 
@@ -152,11 +151,16 @@ back to per-query GEMV beyond that depth.
 
 ## Repository Structure
 
-- `faiss_instrumented/`   Faiss HNSW instrumentation patch and C++ driver
-- `vamana_instrumented/`  DiskANN Vamana instrumentation patch and C++ driver
-- `analysis/`             Decay curve analysis, IVF sharing analysis, and plotting scripts
-- `results/`              Output CSVs and figures for all three algorithms
-- `notes/`                Paper drafts and meeting notes
+## Repository Structure
+
+- `faiss_instrumented/`     Faiss HNSW instrumentation patch and C++ driver
+- `vamana_instrumented/`    DiskANN Vamana instrumentation patch and C++ driver
+- `amx/`                    Standalone AMX GEMM validation and batch scaling tests
+- `ivf_baseline/`           IVF baseline driver for Granite Rapids
+- `analysis/`               Decay curve analysis, IVF sharing analysis, and plotting scripts
+- `results/`                Output CSVs and figures for all three algorithms
+- `results/granite_rapids/` Baseline QPS numbers, decay curves, and profiling on Granite Rapids
+- `notes/`                  Paper drafts and meeting notes
 
 ---
 
@@ -224,6 +228,26 @@ matches IdeaPad results exactly. Sharing rate is a property of
 the algorithm and dataset, not the hardware.
 
 ---
+
+## Phase 5: Hardware Profiling
+
+Tool: perf stat, single threaded, SIFT1M, 1000 queries
+
+| Metric | Vamana | IVF |
+|--------|--------|-----|
+| Cache miss rate | 60.77% | 21.07% |
+| Instructions per cycle | 1.30 | 0.48 |
+| LLC load miss rate | 24.49% | 24.85% |
+
+Vamana's 60.77% cache miss rate confirms graph traversal is
+memory-bound — the CPU spends most of its time waiting for data,
+not computing. IVF's lower miss rate reflects its cache-friendly
+sequential cluster scans. AMX batching addresses Vamana's bottleneck
+by amortizing memory loads across concurrent queries, increasing
+compute intensity per load.
+
+---
+
 - `amx/`                  Standalone AMX GEMM validation and batch scaling tests
 - `ivf_baseline/`         IVF baseline driver for Granite Rapids
 - `results/granite_rapids/` Baseline QPS numbers and decay curves on Granite Rapids
