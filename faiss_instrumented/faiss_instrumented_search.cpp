@@ -33,7 +33,6 @@ int main(int argc, char* argv[]) {
     std::string index_path = argc > 3 ? argv[3] : "faiss_hnsw_m16.bin";
     std::string out_path = argc > 4 ? argv[4] : "faiss_hop_log.csv";
 
-    const int DIM = 128;
     const int N_QUERIES = 1000;
     const int EF_SEARCH = 100;
     const int M = 16;
@@ -47,6 +46,8 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[2/5] Loading " << N_QUERIES << " queries...\n";
     auto queries = load_fvecs(query_path, N_QUERIES);
+    const int DIM = queries.empty() ? 128 : (int)queries[0].size();
+    std::cout << "      DIM=" << DIM << "\n";
 
     std::vector<float> base_flat(N * DIM);
     for (int i = 0; i < N; i++) {
