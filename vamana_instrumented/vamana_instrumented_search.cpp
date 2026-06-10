@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
     std::string out_path = argc > 4 ? argv[4] : "vamana_hop_log.csv";
 
     const uint32_t DIM = 128;
-    const int N_QUERIES = 1000;
+    const int N_QUERIES = argc > 5 ? std::stoi(argv[5]) : 1000;
     const uint32_t K = 10;
     const uint32_t L_SEARCH = 100;
     const uint32_t R = 32;
