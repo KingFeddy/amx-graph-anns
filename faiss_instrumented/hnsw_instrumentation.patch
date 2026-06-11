@@ -1,59 +1,42 @@
 diff --git a/faiss/impl/HNSW.cpp b/faiss/impl/HNSW.cpp
-index 200e42fa0..b8c94bb00 100644
+index b356da967..9e1d87506 100644
 --- a/faiss/impl/HNSW.cpp
 +++ b/faiss/impl/HNSW.cpp
-@@ -19,6 +19,15 @@
- #include <faiss/impl/VisitedTable.h>
- #include <faiss/impl/hnsw/MinimaxHeap.h>
+@@ -15,6 +15,12 @@
+ #include <faiss/impl/DistanceComputer.h>
+ #include <faiss/impl/IDSelector.h>
  
-+// Definitions
 +namespace faiss_instr {
-+
 +std::vector<HNSWHopEntry> hnsw_hop_log;
 +bool hnsw_instr_enabled = false;
 +thread_local int hnsw_current_qid = -1;
-+
 +}
 +
  namespace faiss {
  
  /**************************************************************
-@@ -654,7 +663,7 @@ int search_from_candidates(
+@@ -544,7 +550,7 @@ int search_from_candidates(
      }
  
      int nstep = 0;
 -
-+    int _instr_hop = 0; //hop depth counter
++    int _instr_hop = 0;
      while (candidates.size() > 0) {
          float d0 = 0;
          int v0 = candidates.pop_min(&d0);
-@@ -726,6 +735,15 @@ int search_from_candidates(
-                 }
- 
-                 ndis += 4;
-+		
-+		// For instrumentation
-+		if (faiss_instr::hnsw_instr_enabled && level == 0) {
-+                    for (size_t id4 = 0; id4 < 4; id4++) {
-+                        faiss_instr::hnsw_hop_log.push_back(
-+                            {faiss_instr::hnsw_current_qid, _instr_hop, (int)saved_j[id4]}
-+                        );
-+                    }
-+                }
- 
-                 counter = 0;
-             }
-@@ -736,9 +754,17 @@ int search_from_candidates(
-             add_to_heap(saved_j[icnt], dis);
- 
-             ndis += 1;
-+
-+	    // For instrumentation
-+	    if (faiss_instr::hnsw_instr_enabled && level == 0) {
+@@ -573,6 +579,11 @@ int search_from_candidates(
+             vt.set(v1);
+             ndis++;
+             float d = qdis(v1);
++            if (faiss_instr::hnsw_instr_enabled && level == 0) {
 +                faiss_instr::hnsw_hop_log.push_back(
-+                    {faiss_instr::hnsw_current_qid, _instr_hop, (int)saved_j[icnt]}
++                    {faiss_instr::hnsw_current_qid, _instr_hop, v1}
 +                );
 +            }
+             if (!sel || sel->is_member(v1)) {
+                 if (nres < k) {
+                     faiss::maxheap_push(++nres, D, I, d, v1);
+@@ -584,6 +595,7 @@ int search_from_candidates(
          }
  
          nstep++;
@@ -62,14 +45,13 @@ index 200e42fa0..b8c94bb00 100644
              break;
          }
 diff --git a/faiss/impl/HNSW.h b/faiss/impl/HNSW.h
-index 9c4e581b5..34d787631 100644
+index 6e2524ec5..554715f21 100644
 --- a/faiss/impl/HNSW.h
 +++ b/faiss/impl/HNSW.h
-@@ -20,6 +20,24 @@
+@@ -21,6 +21,23 @@
  #include <faiss/utils/Heap.h>
  #include <faiss/utils/random.h>
  
-+// Batching opportunity decay study
 +#include <vector>
 +
 +namespace faiss_instr {
@@ -89,4 +71,4 @@ index 9c4e581b5..34d787631 100644
 +
  namespace faiss {
  
- // Forward declarations to avoid circular dependency.
+ /** Implementation of the Hierarchical Navigable Small World
