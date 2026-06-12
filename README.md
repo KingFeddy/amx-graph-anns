@@ -266,8 +266,7 @@ algorithm and dataset, not the hardware.
 
 ## Phase 5: Hardware Profiling
 
-Ding's guidance: don't just measure performance — explain it. This
-phase identifies the mechanism behind every number above.
+This phase identifies the mechanism behind every number above.
 
 ### perf stat — Cache Behavior vs Concurrency
 
