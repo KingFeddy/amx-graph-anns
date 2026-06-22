@@ -18,3 +18,6 @@ faiss_instrumented/faiss_instrumented_search
 faiss_instrumented/faiss_hnsw_m16.bin
 faiss_instrumented/faiss_hop_log*.csv
 vamana_instrumented/vamana_hop_log*.csv
+amx/amx_gemm_test
+amx/amx_init_test
+amx/amx_large_test
