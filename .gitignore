@@ -21,3 +21,7 @@ vamana_instrumented/vamana_hop_log*.csv
 amx/amx_gemm_test
 amx/amx_init_test
 amx/amx_large_test
+vamana_hop_log.csv
+vamana_hop_log_r64.csv
+gist_hop_log.csv
+gist_hop_log_r64.csv
