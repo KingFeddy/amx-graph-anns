@@ -8,6 +8,26 @@ Advisor: Prof. Xiaoning Ding
 
 ---
 
+## ⚠ Critical AMX Requirement
+
+**AMX tile registers require explicit OS permission before use.** Without
+the following syscall, MKL silently routes all BF16 GEMM calls to
+AVX-512 — AMX tiles never fire regardless of matrix size or data type:
+
+```cpp
+#include <sys/syscall.h>
+#define ARCH_REQ_XCOMP_PERM 0x1023
+#define XFEATURE_XTILEDATA  18
+syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
+```
+
+Call this once at process startup before any AMX GEMM operations.
+This is undocumented in most MKL guides and likely explains why some
+published AMX benchmarks underreport AMX's capability. See Phase 7
+for the full discovery and verification.
+
+---
+
 ## Motivation
 
 Vector databases power modern AI — RAG pipelines, recommendation
@@ -241,15 +261,35 @@ GIST1M recall is lower at the same L=100 because the 960d graph is
 sparser (avg degree 24.3 vs 30.2) and search is harder; recall is
 tunable with higher L and does not affect sharing structure.
 
-### AMX GEMM Validation
+### AMX GEMM Validation (Corrected)
 
-Standalone GEMM benchmark confirms AMX tile instructions are
-operational on Granite Rapids:
+**Note:** AMX requires `arch_prctl(ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA)`
+at startup. Without it, `cblas_gemm_bf16bf16f32` silently routes to
+AVX-512. Also, FP32 `cblas_sgemm` never uses AMX regardless of matrix
+size. See Phase 7 for the full precision findings.
 
-- 47x speedup over naive triple-loop at batch size 32
-- Correctness verified: max absolute difference 0.000008 (PASS)
-- Cache boundary at batch 64: sub-32 batches are cache-resident at
-  ~2us, batches 64+ pay a fixed ~12us memory cost but GFLOPS scales
+Three-way benchmark (with arch_prctl, T=1, GIST-like 960d, batch=1000):
+
+| Path               | Speedup vs naive |
+|--------------------|-----------------|
+| FP32 sgemm (AVX-512) | ~1000x (throughput) |
+| BF16 gemm (AMX)    | **3.52x over FP32 sgemm** |
+
+AMX speedup scales with graph degree R (larger matrices engage tiles better):
+
+| R   | DIM | Matrix        | AMX vs FP32 sgemm |
+|-----|-----|---------------|------------------|
+| 32  | 128 | 1000x32x128   | 1.62x            |
+| 32  | 960 | 1000x32x960   | 3.52x            |
+| 64  | 960 | 1000x64x960   | 4.44x            |
+| 128 | 960 | 1000x128x960  | 5.05x            |
+
+Batch sensitivity (GIST-like 960d, single thread, arch_prctl enabled):
+- batch=32: 1.27x
+- batch=1000: 3.52x
+- Cache boundary at batch 64: sub-64 batches are marginal; 64+
+  consistently engage AMX tiles for GIST1M-sized vectors
+
   continuously to 3441 at batch 10000 with no plateau visible
 
 **Implication for batch controller:** two operating regimes exist.
@@ -323,6 +363,27 @@ High stalls plus low bandwidth utilization is the signature of
 pointer chase to a neighbor vector. AMX batching converts N random
 loads of the same vector into 1 load reused N times — it attacks
 exactly the 31.7% of stalled clockticks.
+
+### Corrected Search-Only Profile (SIFT1M, 10K queries)
+
+Earlier VTune profiles on GIST1M included index loading time (2.4s)
+alongside search time (0.25s), inflating `std::istream::read` to 29.4%.
+The corrected search-only breakdown (10K SIFT1M queries, loading negligible):
+
+| Function                | CPU Time | % of Search |
+|-------------------------|----------|-------------|
+| DistanceL2Float::compare| 3.049s   | 39.9%       |
+| kmp_fork_barrier        | 2.121s   | 27.7%       |
+| iterate_to_fixed_point  | 0.498s   | 6.5%        |
+| std::vector copy        | 0.340s   | 4.4%        |
+| Others                  | 1.641s   | 21.5%       |
+
+**Note:** `std::vector<uint32_t>` copy at 4.4% is neighbor list copying
+overhead — larger than the AMX-addressable window on SIFT1M. See Phase 8.
+
+GIST1M estimated search-only: distance compute ~74%, sync ~18%, other ~8%.
+DiskANN already uses `optimize_index_layout()` with `_mm_prefetch` before
+search — the memory layout is already optimized.
 
 ---
 
@@ -411,6 +472,191 @@ already expensive at 960d, limiting parallelism gains.
 
 ---
 
+## Phase 7: AMX Precision and Hardware Findings
+
+This phase documents discoveries about AMX hardware behavior that
+correct earlier assumptions and are critical for any AMX implementation.
+
+### Finding 1 — arch_prctl Is Required (Critical)
+
+Without `arch_prctl(ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA)`,
+MKL silently routes `cblas_gemm_bf16bf16f32` to AVX-512 BF16 kernels.
+
+Confirmed via MKL_VERBOSE=1:
+- Without arch_prctl: `avx512_gemm_bf16bf16f32_generic_fullacopybcopy`
+  in `libmkl_avx512.so.3` — explicitly AVX-512
+- With arch_prctl: `_gemm_bf16bf16f32` in `libmkl_rt.so.3` — AMX
+  dispatcher engaged
+
+Confirmed via VTune hotspots:
+- Without arch_prctl: all hotspots in libmkl_avx512.so.3
+- With arch_prctl: hotspot shifts to libmkl_rt.so.3 AMX path
+
+Confirmed via speedup:
+- AVX-512 BF16 theoretical max over FP32: ~2x (packs 2x data/register)
+- Measured 4.92x at 2048³ with arch_prctl — only possible with AMX tiles
+
+### Finding 2 — FP32 Never Uses AMX
+
+`cblas_sgemm` (FP32 inputs) always routes to AVX-512, never AMX,
+regardless of matrix size. AMX TMUL supports only BF16, INT8, and FP16
+(FP16 on Granite Rapids). Our original `amx_gemm_test.cpp` used sgemm;
+corrected to use `cblas_gemm_bf16bf16f32`.
+
+### Finding 3 — AMX Dispatch Threshold
+
+MKL only dispatches to AMX tiles above a minimum matrix size.
+Sweep results (with arch_prctl, T=1):
+
+| Matrix size         | Use case         | BF16 speedup |
+|---------------------|------------------|--------------|
+| 32×1000×128         | ANNS SIFT hop-0  | 1.62x        |
+| 32×1000×960         | ANNS GIST hop-0  | 3.52x        |
+| 512×512×512         | LLM small        | 3.41x        |
+| 1024×1024×1024      | LLM medium       | 4.12x        |
+| 2048×2048×2048      | LLM large        | 4.95x        |
+
+The K dimension (DIM) is the primary driver. GIST1M at 960d reaches
+the AMX-effective regime; SIFT1M at 128d is marginal.
+
+### Finding 4 — BF16 Recall Impact (GIST1M)
+
+BF16 precision is safe for GIST1M distance computation.
+
+| Path            | Recall@10 | Avg dist cmps |
+|-----------------|-----------|---------------|
+| FP32 baseline   | 88.31%    | 2545.01       |
+| BF16 simulated  | 87.41%    | 2546.99       |
+| Drop            | 0.90%     | +0.08%        |
+
+Traversal path is stable: the tiny precision difference does not
+meaningfully change which nodes get visited. Safe for production use.
+SIFT1M is natively uint8 — INT8 path is completely lossless.
+
+---
+
+## Phase 8: Systematic Batching Exploration
+
+Seven alternative batching approaches were tested beyond Track A.
+All results include corrected Amdahl analysis using search-only
+VTune profiles (index loading excluded from runtime fractions).
+
+**Corrected runtime fractions (search only):**
+- SIFT1M: distance 39.9%, sync 27.7%, other 32.4%
+- GIST1M: distance ~74%, sync ~18%, other ~8%
+
+### Track A — Medoid-Block GEMM (Reference)
+
+Batch all queries' hop-0 evaluations into one BF16 GEMM.
+The medoid is the only structurally-guaranteed large batch point.
+
+| Dataset | Window (% of evals) | Window (% of runtime) | AMX speedup | Amdahl |
+|---------|--------------------|-----------------------|-------------|--------|
+| SIFT1M  | 1.3%               | 0.52%                 | 1.62x       | 1.004x |
+| GIST1M  | 1.3%               | 0.96%                 | 3.52x       | 1.008x |
+
+Extended to hops 0-19 (weighted AMX 1.213x due to rapid batch dilution):
+
+| Dataset | Window (% of evals) | Window (% of runtime) | Amdahl |
+|---------|--------------------|-----------------------|--------|
+| GIST1M  | 22.5%              | 16.7%                 | 1.034x |
+
+### Track B — Node-Level Batching
+
+**Hypothesis:** batch individual node expansions across queries that
+coincidentally visit the same node, regardless of hop depth.
+
+**Result:** DEAD END. Coverage only 2-8% of evaluations at AMX-eligible
+thresholds (≥32 queries/node). Scaling to 10,000 simulated queries does
+not improve — coverage plateaus because graph search is designed to
+diverge queries. Amdahl: ~1.01x.
+
+### Higher Graph Degree R
+
+**Hypothesis:** larger R → fatter hop-0 GEMM matrix → better AMX.
+
+AMX speedup does scale with R (3.52x at R=32 → 4.44x at R=64 on GIST1M).
+However, higher R drops baseline QPS 4x faster than AMX recovers it.
+Net result at matched recall: R=64 gives 7,253 projected QPS vs R=32's
+25,150 projected QPS.
+
+**Conclusion:** DEAD END for absolute throughput. Useful finding: for
+applications that already need R=64+ for high recall requirements,
+AMX provides disproportionately more benefit (1.060x vs 1.034x).
+
+### Query Clustering Before Search
+
+**Hypothesis:** K-means cluster queries before search so similar queries
+traverse similar graph regions, increasing per-node batch size.
+
+Clustering dramatically improves per-node coverage (8.8% → 55.2% at K=5)
+but average batch size per hot node stays at only 7.6 queries.
+AMX speedup at batch=7: 1.2x. Amdahl: 1.108x < Track A's 1.034x.
+
+**Conclusion:** DEAD END. Coverage improves but batch size per node
+stays too small for AMX to fire effectively. Even clustered queries
+spread across many distinct nodes within their local region.
+
+### Epoch-Synchronous Search
+
+**Hypothesis:** keep all queries synchronized at hop boundaries — one
+GEMM per epoch covers 100% of distance compute.
+
+Initial analysis showed 1.449x but contained a critical error:
+assumed 1000×32×960 matrix at every hop. Actual matrix is
+(queries sharing that specific node) × 32 × 960.
+
+Corrected per-hop batch sizes:
+- Hop 0: 1000 queries/node → 3.52x AMX
+- Hop 1: 33.8 queries/node → 2.00x AMX
+- Hop 2+: 1.1 queries/node → 1.02x AMX
+
+Weighted AMX across all hops: 1.063x. End-to-end: 1.011x after
+1.5% barrier overhead at T=32. Track A still wins.
+
+**Conclusion:** DEAD END. Epoch-sync does not fix the divergence problem
+— after hop 0, queries expand different nodes regardless of scheduling.
+
+### Re-rank Stage Batching
+
+**Hypothesis:** batch all queries' re-rank computations into one GEMM.
+
+**Result:** DEAD END immediately. `diskann::InMemDataStore::get_distance`
+(the re-rank function) accounts for only 0.07% of search runtime.
+In-memory DiskANN computes full-precision L2 throughout — there is no
+cheap-then-expensive two-stage scoring. Only disk-based DiskANN has a
+re-rank stage.
+
+### Neighbor List Copy Elimination (Unexpected Finding)
+
+`std::vector<uint32_t>` copy constructor appears at 4.4% of SIFT1M
+search runtime — **larger than the AMX-addressable window on SIFT1M.**
+
+Each node expansion copies neighbor IDs into scratch space unnecessarily.
+Replacing with const reference or span where neighbors are read-only
+would yield ~4-5% speedup with zero algorithm change — more than Track A.
+
+**Status:** identified, not yet implemented. Recommended as a quick win.
+
+### Summary of All Approaches
+
+| Approach                 | GIST1M Amdahl | Status      |
+|--------------------------|---------------|-------------|
+| Track A hop 0 only       | 1.008x        | Viable      |
+| Track A hops 0-19        | 1.034x        | Viable      |
+| Higher R (R=64)          | 1.060x        | Worse abs QPS |
+| Neighbor copy removal    | ~1.046x       | Unimplemented |
+| Track A + copy removal   | ~1.055x       | Best combined |
+| Node-level batching      | ~1.01x        | Dead end    |
+| Query clustering K=5     | 1.108x*       | Dead end (SIFT wins) |
+| Epoch-synchronous        | 1.011x        | Dead end    |
+| Re-rank batching         | N/A           | Dead end    |
+
+*Query clustering Amdahl is higher than Track A on paper but lower in
+ practice because the batch/node size is too small for AMX to fire.
+
+---
+
 ## Synthesis: When Does AMX Help Graph ANNS?
 
 **AMX helps when:**
@@ -421,33 +667,53 @@ already expensive at 960d, limiting parallelism gains.
 - Especially at high dimensionality (768d+), where vectors are too
   large for accidental cache sharing and explicit batching is the
   only amortization mechanism
+- `arch_prctl(ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA)` is called
+  at startup (required — AMX silently degrades without it)
 
 **AMX does not help when:**
 - Queries arrive one at a time (no sharing possible)
 - The algorithm disperses entry points (HNSW at low dims)
 - Thread count is high enough that synchronization, not compute,
   dominates (T=128+)
+- Matrices are too small (SIFT1M 128d stays at 1.62x vs GIST1M 3.52x)
 
 **Why it helps (the mechanism):**
 - Graph ANNS wastes 31.7% of clockticks on latency-bound random
   memory access
 - Batching converts N redundant loads of each neighbor vector into
   1 load reused across all N queries
-- AMX GEMM then executes the fused computation at up to 47x the
-  throughput of independent GEMVs
+- AMX BF16 GEMM then executes the fused computation at **3.52x over
+  AVX-512 FP32 GEMV** at GIST1M-scale matrices (after arch_prctl)
+
+**The fundamental AMX resistance finding:**
+- Hop 0: all queries share the medoid → fat matrix, AMX fires well
+- Hop 1: ~34 queries per node → medium matrix, AMX fires partially
+- Hop 2+: ~1.1 queries per node → too sparse, AMX provides no benefit
+- The medoid is the ONLY structurally-guaranteed large batch in Vamana
+- Every alternative batching approach hits the same 1.1 queries/node wall
+
+---
+
+## Next Step: Batch Controller Implementation
+
+The characterization is complete. The implementation target is Track A:
+a medoid-block BF16 GEMM inside `iterate_to_fixed_point` using
+`cblas_gemm_bf16bf16f32` with `arch_prctl` at startup, INT8 for SIFT
+(natively uint8, lossless) and BF16 for GIST (0.90% recall drop,
+within tolerance).
 
 ---
 
 ## Repository Structure
 
-- `faiss_instrumented/`     Faiss HNSW instrumentation patch and C++ driver
-- `vamana_instrumented/`    DiskANN Vamana instrumentation patch and C++ driver
-- `ivf_baseline/`           IVF baseline driver
-- `amx/`                    AMX GEMM validation and batch scaling tests
-- `analysis/`               Decay curve analysis, IVF sharing analysis, plotting scripts
-- `results/`                Output CSVs and figures
-- `results/granite_rapids/` Baseline QPS, decay curves, and profiling on Granite Rapids
-- `notes/`                  Paper drafts and meeting notes
+- `faiss_instrumented/`      Faiss HNSW instrumentation patch and C++ driver
+- `vamana_instrumented/`     DiskANN Vamana instrumentation patch and C++ driver
+- `ivf_baseline/`            IVF baseline driver
+- `amx/`                     AMX benchmarks (amx_init_test, amx_r_sweep, barrier_overhead_test)
+- `analysis/`                Decay curve analysis, IVF sharing, BF16 recall check
+- `analysis/exploration/`    Systematic batching exploration (all ideas tested)
+- `results/`                 Output CSVs and figures
+- `results/granite_rapids/`  Baselines, profiling, AMX findings, corrected Amdahl
 
 ## Reproducibility
 
@@ -460,3 +726,7 @@ and dl.fbaipublicfiles.com (SIFT1B u8bin); conversion scripts are in
 100M subset using DiskANN's `compute_groundtruth`. Drivers infer
 vector dimensionality from input files and take explicit index paths
 to prevent cross-dataset contamination.
+
+**AMX note:** all AMX benchmarks require `arch_prctl(ARCH_REQ_XCOMP_PERM,
+XFEATURE_XTILEDATA)` before any GEMM call. See `amx/amx_init_test.cpp`
+for the reference implementation.
