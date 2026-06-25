@@ -93,7 +93,7 @@ alpha=1.2) so dimensionality and scale are isolated variables.
 | Vamana    | SIFT1M    | 128  | 99.9%        | 4     | Strong in early hops |
 | Vamana    | GIST1M    | 960  | 99.9%        | 19    | Extends to 19 hops   |
 | Vamana    | SIFT 100M | 128  | 99.9%        | 3     | Scale-invariant      |
-| HNSW      | SIFT1M    | 128  | 6.9%         | 0     | None                 |
+| HNSW      | SIFT1M    | 128  | 6.5%         | 0     | None                 |
 | HNSW      | GIST1M    | 960  | 21.7%        | 17    | Emerges at high dims |
 
 Three headline findings:
