@@ -1,0 +1,12 @@
+diff --git a/include/index.h b/include/index.h
+index b9bf4f38..0a5c12a7 100644
+--- a/include/index.h
++++ b/include/index.h
+@@ -127,6 +127,7 @@ template <typename T, typename TagT = uint32_t, typename LabelT = uint32_t> clas
+ 
+     // For FastL2 search on optimized layout
+     DISKANN_DLLEXPORT void search_with_optimized_layout(const T *query, size_t K, size_t L, uint32_t *indices);
++    DISKANN_DLLEXPORT void search_batch_medoid_hop0(const T *queries, size_t N, size_t K, uint32_t L, uint32_t num_threads, size_t aligned_dim, uint32_t *indices);
+ 
+     // Added search overload that takes L as parameter, so that we
+     // can customize L on a per-query basis without tampering with "Parameters"

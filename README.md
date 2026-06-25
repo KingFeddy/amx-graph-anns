@@ -34,8 +34,11 @@ for the full discovery and verification.
 (the method) plus `amx/medoid_batch_benchmark.cpp` (the benchmark driver).
 Start there.
 
-Prerequisites: Intel oneAPI (MKL + compiler) and DiskANN 0.7.0 built with the
-instrumentation patch at `~/DiskANN` (see Reproducibility below).
+Prerequisites: Intel oneAPI (MKL + compiler) and DiskANN 0.7.0 at `~/DiskANN`,
+built with two patches applied: `vamana_instrumented/diskann_instrumentation.patch`
+(hop-logging instrumentation) and `vamana_instrumented/diskann_medoid_hop0_api.patch`
+(declares the `search_batch_medoid_hop0` method in `include/index.h`, which the
+controller defines out-of-line). See Reproducibility below.
 
 ```bash
 source /opt/intel/oneapi/setvars.sh
@@ -877,8 +880,11 @@ Two further open items:
 
 ## Reproducibility
 
-All instrumentation is captured as git patches that apply cleanly to
-fresh clones of DiskANN 0.7.0 and Faiss v1.7.4. Index build
+All instrumentation and the medoid-controller API are captured as git patches
+that apply cleanly to fresh clones of DiskANN 0.7.0 and Faiss v1.7.4. DiskANN
+needs two patches: `diskann_instrumentation.patch` (hop-logging) and
+`diskann_medoid_hop0_api.patch` (the `search_batch_medoid_hop0` declaration in
+`include/index.h`). Both are in `vamana_instrumented/`. Index build
 parameters are constant everywhere (R=32, L_build=125, alpha=1.2,
 T=64). Datasets come from ann-benchmarks.com (SIFT1M, GIST1M HDF5)
 and dl.fbaipublicfiles.com (SIFT1B u8bin); conversion scripts are in
