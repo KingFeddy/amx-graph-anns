@@ -7,6 +7,9 @@
 // Compiled separately and linked with libdiskann.a; do NOT add to CMakeLists.
 
 #include <cstring>
+#include <cstdlib>
+#include <chrono>
+#include <cstdio>
 #include <limits>
 #include <shared_mutex>
 #include <vector>
@@ -17,8 +20,6 @@
 #include "scratch.h"
 #include "neighbor.h"
 #include "defaults.h"   // MAX_POINTS_FOR_USING_BITSET
-
-// Mirrors the file-local #define in DiskANN src/index.cpp:27
 #define MAX_POINTS_FOR_USING_BITSET 10000000
 
 template <typename T, typename TagT, typename LabelT>
@@ -33,8 +34,14 @@ void diskann::Index<T, TagT, LabelT>::search_batch_track_a(
 {
     if (N == 0) return;
 
+    // Optional phase timing — set TRACK_A_TIMING=1 to enable. Off by default
+    // so benchmark timed regions stay clean.
+    static const bool ta_timing = (std::getenv("TRACK_A_TIMING") != nullptr);
+    std::chrono::high_resolution_clock::time_point _t0, _t1, _t2;
+    if (ta_timing) _t0 = std::chrono::high_resolution_clock::now();
+
     // -------------------------------------------------------------------
-    // Phase 1 (serial): one BF16 GEMM for all N queries x R medoid neighbors
+    // Phase 1: one BF16 GEMM for all N queries x R medoid neighbors
     // -------------------------------------------------------------------
 
     const size_t D = _data_store->get_aligned_dim();
@@ -125,6 +132,8 @@ void diskann::Index<T, TagT, LabelT>::search_batch_track_a(
 
     const auto   total_pts = _max_points + _num_frozen_pts;
     const bool   fast_iter = (total_pts <= MAX_POINTS_FOR_USING_BITSET);
+
+    if (ta_timing) _t1 = std::chrono::high_resolution_clock::now();
 
     // Shared (read) lock — same as Index::search()
     std::shared_lock<std::shared_timed_mutex> idx_lock(_update_lock);
@@ -217,6 +226,17 @@ void diskann::Index<T, TagT, LabelT>::search_batch_track_a(
         }
         // Pad if fewer than K valid results (shouldn't happen with L >= K)
         while (pos < K) out[pos++] = std::numeric_limits<uint32_t>::max();
+    }
+
+    if (ta_timing) {
+        _t2 = std::chrono::high_resolution_clock::now();
+        double p1 = std::chrono::duration<double, std::milli>(_t1 - _t0).count();
+        double p2 = std::chrono::duration<double, std::milli>(_t2 - _t1).count();
+        double tot = p1 + p2;
+        std::fprintf(stderr,
+            "[TRACK_A_TIMING] Phase1(setup+GEMM)=%.3f ms (%.2f%%)  "
+            "Phase2(traversal)=%.3f ms (%.2f%%)  total=%.3f ms\n",
+            p1, 100.0 * p1 / tot, p2, 100.0 * p2 / tot, tot);
     }
 }
 
