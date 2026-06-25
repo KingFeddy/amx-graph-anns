@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <chrono>
 #include <cstring>
+#include <cstdlib>
+#include <cmath>
 #include <iostream>
 #include <set>
 #include <vector>
@@ -183,32 +185,80 @@ int main(int argc, char *argv[])
     run_track_a (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta);
 
     // ----------------------------------------------------------------
-    // Timed runs — 3 iterations, report best QPS
+    // Timed runs — interleaved repeated measurement with mean +/- stddev.
+    // Interleaving (base, ta, base, ta, ...) so any drift hits both paths
+    // equally. Reports QPS mean/stddev and a noise-aware verdict.
+    // Override iteration count with TRACK_A_ITERS (default 15).
     // ----------------------------------------------------------------
-    double t_base = 1e9, t_ta = 1e9;
-    for (int r = 0; r < 3; r++) {
-        t_base = std::min(t_base,
-            run_baseline(idx, queries, query_num, K, L, T, query_aligned_dim, result_base));
-        t_ta = std::min(t_ta,
-            run_track_a (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta));
+    int iters = 15;
+    if (const char *e = std::getenv("TRACK_A_ITERS")) {
+        int v = std::atoi(e);
+        if (v > 1) iters = v;
     }
 
-    double qps_base = (double)query_num / t_base;
-    double qps_ta   = (double)query_num / t_ta;
+    std::vector<double> qps_base_samples, qps_ta_samples;
+    qps_base_samples.reserve(iters);
+    qps_ta_samples.reserve(iters);
+
+    for (int r = 0; r < iters; r++) {
+        double tb = run_baseline(idx, queries, query_num, K, L, T, query_aligned_dim, result_base);
+        double tt = run_track_a (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta);
+        qps_base_samples.push_back((double)query_num / tb);
+        qps_ta_samples.push_back((double)query_num / tt);
+    }
+
+    auto mean_stddev = [](const std::vector<double> &v, double &mean, double &sd) {
+        double s = 0.0;
+        for (double x : v) s += x;
+        mean = s / v.size();
+        double var = 0.0;
+        for (double x : v) var += (x - mean) * (x - mean);
+        sd = std::sqrt(var / (v.size() - 1));  // sample stddev
+    };
+
+    double qps_base, sd_base, qps_ta, sd_ta;
+    mean_stddev(qps_base_samples, qps_base, sd_base);
+    mean_stddev(qps_ta_samples,   qps_ta,   sd_ta);
+
     double rec_base = calc_recall(result_base.data(), gt_ids, query_num, K, gt_dim);
     double rec_ta   = calc_recall(result_ta.data(),   gt_ids, query_num, K, gt_dim);
+
+    double speedup = qps_ta / qps_base;
+    // Relative noise: combined coefficient of variation of the two means.
+    double cv_base = sd_base / qps_base;
+    double cv_ta   = sd_ta   / qps_ta;
+    double noise_band = std::sqrt(cv_base * cv_base + cv_ta * cv_ta); // ~rel. sigma of ratio
 
     // ----------------------------------------------------------------
     // Results
     // ----------------------------------------------------------------
     std::cout << "\n=== Track A Results (L=" << L
-              << " K=" << K << " T=" << T << ") ===\n";
+              << " K=" << K << " T=" << T
+              << ", " << iters << " iters) ===\n";
+    std::cout.precision(2);
     std::cout << "Baseline  QPS=" << (uint64_t)qps_base
+              << " +/- " << (uint64_t)sd_base
+              << " (" << 100.0 * cv_base << "%)"
               << "  Recall@" << K << "=" << rec_base << "%\n";
     std::cout << "Track A   QPS=" << (uint64_t)qps_ta
+              << " +/- " << (uint64_t)sd_ta
+              << " (" << 100.0 * cv_ta << "%)"
               << "  Recall@" << K << "=" << rec_ta   << "%\n";
-    std::cout << "Speedup:  " << qps_ta / qps_base << "x\n";
+    std::cout.precision(4);
+    std::cout << "Speedup:  " << speedup << "x"
+              << "  (noise band +/- " << 100.0 * noise_band << "%)\n";
+    std::cout.precision(2);
     std::cout << "Recall drop: " << rec_base - rec_ta << "%\n";
+
+    // Noise-aware verdict: is the speedup distinguishable from 1.0?
+    double delta = std::fabs(speedup - 1.0);
+    if (delta <= noise_band) {
+        std::cout << "Verdict:  WITHIN NOISE (no measurable difference from baseline)\n";
+    } else if (speedup > 1.0) {
+        std::cout << "Verdict:  Track A faster beyond noise band\n";
+    } else {
+        std::cout << "Verdict:  Track A slower beyond noise band\n";
+    }
 
     diskann::aligned_free(queries);
     delete[] gt_ids;
