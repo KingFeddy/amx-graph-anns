@@ -20,7 +20,10 @@
 #include "index.h"
 #include "scratch.h"
 #include "neighbor.h"
-#include "defaults.h"   // MAX_POINTS_FOR_USING_BITSET
+#include "defaults.h"
+// MAX_POINTS_FOR_USING_BITSET is a file-local #define in DiskANN's
+// src/index.cpp (not exported in a header), so it is redefined here to
+// match. Must stay in sync with src/index.cpp:27.
 #define MAX_POINTS_FOR_USING_BITSET 10000000
 
 template <typename T, typename TagT, typename LabelT>

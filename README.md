@@ -329,9 +329,8 @@ Batch sensitivity (GIST-like 960d, single thread, arch_prctl enabled):
 - batch=32: 1.27x
 - batch=1000: 3.52x
 - Cache boundary at batch 64: sub-64 batches are marginal; 64+
-  consistently engage AMX tiles for GIST1M-sized vectors
-
-  continuously to 3441 at batch 10000 with no plateau visible
+  consistently engage AMX tiles for GIST1M-sized vectors. Speedup keeps
+  climbing with batch size up to at least batch=10000 (no plateau observed).
 
 **Implication for batch controller:** two operating regimes exist.
 Fire at batch <=32 for latency-sensitive workloads. Accumulate
