@@ -30,3 +30,4 @@ barrier_overhead_test
 amx/track_a_search
 amx/amx_scaling_extended
 repomix-clean.txt
+amx/medoid_batch_benchmark
