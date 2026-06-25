@@ -40,6 +40,14 @@ central bound, confirmed in the working system.
 BF16 applied only at hop 0, so the measured drop is far below the simulated
 full-search BF16 estimate (0.90%, see amx_precision_findings.md).
 
+Note on baseline figures: the 88.31% (GIST1M) and 99.11% (SIFT1M) baselines
+here are from the Track A comparison run at T=32, L=100. The threading-baseline
+files (gist_baseline.md, vamana_baseline.md) report slightly different recall
+(88.50%, 99.14%) because they are separate peak-throughput sweeps across thread
+counts; the small differences are run/config variance, not an algorithmic
+change. The Track A comparison always uses baseline and Track A measured in the
+same run, so the reported speedup and recall-drop are internally consistent.
+
 ## Conclusion
 The controller is correct and the AMX kernel fires at the validated 3.52x,
 but end-to-end speedup is small and statistically significant only at low
