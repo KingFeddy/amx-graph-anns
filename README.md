@@ -71,7 +71,9 @@ same depth — those computations can be fused into one AMX GEMM.
 **H_AMX** — the last hop where sharing rate exceeds the 5% usefulness
 threshold. The batch controller uses AMX GEMM for hops 0 through
 H_AMX and falls back to per-query GEMV beyond that depth. H_AMX is
-the size of the AMX opportunity window.
+the size of the AMX opportunity window. All H_AMX values in this
+document are computed at the 5% threshold from clean 1000-query hop
+logs using analysis/analyze_decay.py --threshold 0.05.
 
 **Methodology** — we instrumented the distance-computation hot path
 of DiskANN (`iterate_to_fixed_point` in index.cpp) and Faiss
@@ -89,7 +91,7 @@ alpha=1.2) so dimensionality and scale are isolated variables.
 |-----------|-----------|------|--------------|-------|----------------------|
 | IVF       | SIFT1M    | 128  | 87-99%       | N/A   | Extremely high       |
 | Vamana    | SIFT1M    | 128  | 99.9%        | 4     | Strong in early hops |
-| Vamana    | GIST1M    | 960  | 99.9%        | 24    | Extends to 24 hops   |
+| Vamana    | GIST1M    | 960  | 99.9%        | 19    | Extends to 19 hops   |
 | Vamana    | SIFT 100M | 128  | 99.9%        | 3     | Scale-invariant      |
 | HNSW      | SIFT1M    | 128  | 6.9%         | 0     | None                 |
 | HNSW      | GIST1M    | 960  | 21.7%        | 17    | Emerges at high dims |
@@ -102,7 +104,7 @@ Three headline findings:
 2. **Scale barely matters.** 100x more vectors moves H_AMX by one hop.
    The opportunity is architectural, not data-dependent.
 3. **Vamana structurally dominates HNSW at every dimensionality**
-   (4 vs 0 at 128d, 24 vs 17 at 960d) because its fixed medoid entry
+   (4 vs 0 at 128d, 19 vs 17 at 960d) because its fixed medoid entry
    point guarantees hop-0 sharing.
 
 ---
@@ -259,7 +261,11 @@ favorable, and the target the batch controller is chasing.
 
 GIST1M recall is lower at the same L=100 because the 960d graph is
 sparser (avg degree 24.3 vs 30.2) and search is harder; recall is
-tunable with higher L and does not affect sharing structure.
+tunable with higher L and does not affect sharing structure. (The
+88.50% here is the T=128 peak-throughput run; the Track A comparison
+in Phase 9 uses an 88.31% baseline measured at T=32, L=100 — the same
+config the controller is benchmarked against. The small difference is
+thread-count / run variance, not an algorithmic change.)
 
 ### AMX GEMM Validation (Corrected)
 
@@ -345,11 +351,25 @@ the only mechanism that can amortize vector loads.**
 The bottleneck flips from compute to synchronization as thread count
 grows. Barrier time is threads finishing queries at different speeds
 and waiting for each other. AMX accelerates distance computation, so
-its leverage is highest where compute still dominates: **T=32-64 is
-the batch controller's optimal operating zone.** At T=128, Amdahl's
-law caps gains — accelerating 35% of runtime cannot exceed 1.5x.
-This is also a stated limitation: AMX does not fix thread imbalance,
-which becomes the next bottleneck.
+its leverage is highest where compute still dominates: T=32-64 is
+where AMX *compute* leverage is theoretically greatest. At T=128,
+Amdahl's law caps gains — accelerating 35% of runtime cannot exceed
+1.5x. AMX does not fix thread imbalance, which becomes the next
+bottleneck.
+
+**Reconciliation with measured results (see Phase 9):** the prediction
+above is about where AMX compute leverage is highest. The *measured*
+end-to-end benefit of the Track A controller, however, is statistically
+significant only at very low thread counts (T=1: 1.007x GIST1M, 1.004x
+SIFT1M, both beyond the 30-iteration noise band), and falls within
+measurement noise at T=32. The reason is that hop-0 is only ~0.9% of
+runtime (Phase 9 timing), and at high thread counts query-level
+parallelism already amortizes the medoid's neighbor loads through
+accidental cross-thread cache sharing — leaving almost nothing for the
+GEMM to recover. The compute-leverage prediction and the end-to-end
+measurement are about different things and do not conflict: AMX has the
+most compute headroom at moderate T, but the most *recoverable* runtime
+at low T.
 
 ### VTune Memory Access (T=32)
 
@@ -394,13 +414,13 @@ search — the memory layout is already optimized.
 | Algorithm | Dataset   | Dims | H_AMX |
 |-----------|-----------|------|-------|
 | Vamana    | SIFT1M    | 128  | 4     |
-| Vamana    | GIST1M    | 960  | 24    |
+| Vamana    | GIST1M    | 960  | 19    |
 | Vamana    | SIFT 100M | 128  | 3     |
 | HNSW      | SIFT1M    | 128  | 0     |
 | HNSW      | GIST1M    | 960  | 17    |
 
 **Dimensionality effect (controlled scale):** SIFT1M vs GIST1M, both
-1M vectors, only dims change. H_AMX grows 4 -> 24. The mechanism is
+1M vectors, only dims change. H_AMX grows 4 -> 19. The mechanism is
 distance concentration: at 960d all pairwise distances become more
 uniform, so the pull toward each query's individual target is weaker
 relative to graph structure — paths stay correlated for many more
@@ -431,7 +451,7 @@ gives it a structural lead at every dimensionality.
 | 50   | 2           | 2           |
 | 100  | 2           | 4           |
 | 500  | 3           | 7           |
-| 1000 | 4           | 24          |
+| 1000 | 4           | 19          |
 
 H_AMX itself scales with batch size. A single query has zero AMX
 opportunity — sharing requires concurrency to exist. N>=10 is the
@@ -531,7 +551,14 @@ BF16 precision is safe for GIST1M distance computation.
 
 Traversal path is stable: the tiny precision difference does not
 meaningfully change which nodes get visited. Safe for production use.
-SIFT1M is natively uint8 — INT8 path is completely lossless.
+
+**Implementation note:** the table above is the *simulated* full-search
+BF16 estimate (0.90% drop). The shipped Track A controller applies BF16
+only at hop 0 (the medoid GEMM), not the whole search, so the measured
+end-to-end recall drop is much smaller: 0.11% on GIST1M (88.31% to 88.20%)
+and 0.00% on SIFT1M. SIFT1M is natively uint8, so an INT8 hop-0 path would
+be exactly lossless; that path is identified as future work. The current
+implementation uses BF16 for both datasets.
 
 ---
 
@@ -657,6 +684,89 @@ would yield ~4-5% speedup with zero algorithm change — more than Track A.
 
 ---
 
+## Phase 9: Track A Batch Controller — Implementation and Measurement
+
+The characterization's implementation target, now built and measured.
+
+### Design
+
+Two-phase restructuring of DiskANN's `search_with_optimized_layout`
+(FAST_L2) path:
+
+- **Phase 1 (serial, before the parallel region):** all N concurrent
+  query vectors and the medoid's R neighbor vectors are converted to
+  BF16; one `cblas_gemm_bf16bf16f32` computes the N x R inner-product
+  matrix; distances are scattered to full L2 via
+  `||q||^2 + ||x||^2 - 2<q,x>`, matching DiskANN's exact-distance scale
+  so hop-0 and hop-1+ distances are directly comparable in the priority
+  queue.
+- **Phase 2 (parallel over queries):** each query seeds its priority
+  queue with the precomputed hop-0 distances, marks the medoid and its
+  neighbors visited, and runs normal independent traversal from hop 1.
+
+The controller adds no modification to existing DiskANN functions; it is
+a new `search_batch_track_a` method plus a benchmark driver.
+
+### arch_prctl confirmed firing
+
+MKL_VERBOSE shows `GEMM_BF16BF16F32` dispatching, with the steady-state
+hop-0 GEMM at 63-78us for all 1000 GIST1M queries. The first GEMM call
+carries an ~80ms one-time AMX initialization (tile config / JIT), which
+is absorbed by an untimed warmup pass.
+
+### Phase timing (GIST1M, T=32)
+
+| Region                        | Time    | % of runtime |
+|-------------------------------|---------|--------------|
+| Phase 1 (setup + GEMM + scatter) | 0.43ms  | 0.9%         |
+| Phase 2 (traversal, hops 1+)  | 47.4ms  | 99.1%        |
+
+The entire AMX-addressable region is ~0.9% of runtime — confirming the
+characterization's central bound directly in the working implementation,
+not just in the Amdahl projection.
+
+### End-to-end results
+
+30 interleaved iterations per configuration, reporting mean +/- sample
+stddev with a noise-aware verdict (speedup is "beyond noise" only if its
+distance from 1.0 exceeds the combined coefficient of variation):
+
+| Dataset | T  | Baseline QPS    | Track A QPS     | Speedup | Noise band | Verdict             |
+|---------|----|-----------------|-----------------|---------|------------|---------------------|
+| GIST1M  | 1  | 912 +/- 3       | 919 +/- 3       | 1.007x  | +/-0.50%   | faster beyond noise |
+| GIST1M  | 32 | 20,697 +/- 436  | 20,638 +/- 377  | 0.997x  | +/-2.8%    | within noise        |
+| SIFT1M  | 1  | 4,448 +/- 4     | 4,468 +/- 3     | 1.004x  | +/-0.13%   | faster beyond noise |
+| SIFT1M  | 32 | 108,154 +/- 1129| 105,779 +/- 7949| 0.978x  | +/-7.6%    | within noise        |
+
+### Recall preserved
+
+| Dataset | Baseline | Track A | Drop  |
+|---------|----------|---------|-------|
+| GIST1M  | 88.31%   | 88.20%  | 0.11% |
+| SIFT1M  | 99.11%   | 99.11%  | 0.00% |
+
+BF16 is applied only at hop 0 (the medoid GEMM), so the measured drop is
+far below the simulated full-search BF16 estimate of Phase 7 (0.90%).
+
+### Honest conclusion
+
+The controller is correct and the AMX kernel fires at the validated
+3.52x (GIST1M hop-0 matrix), but the end-to-end speedup is small and
+statistically significant only at low concurrency. At T=1 the measured
+1.007x (GIST1M) matches the predicted Amdahl ceiling (1.008x) almost
+exactly — though the dominant mechanism at low thread counts is memory
+amortization (with one thread there is no cross-query cache sharing for
+the baseline to exploit at hop 0), not the compute acceleration the
+Amdahl fraction models. At T=32 the effect is within noise because
+query-level parallelism already amortizes the medoid loads.
+
+This is the AMX-resistance thesis demonstrated end-to-end: a working
+batch controller whose ceiling is set, by construction, by hop-0 being
+~0.9% of runtime. The contribution is the working system plus the
+quantified bound, not a large speedup number.
+
+---
+
 ## Synthesis: When Does AMX Help Graph ANNS?
 
 **AMX helps when:**
@@ -694,13 +804,25 @@ would yield ~4-5% speedup with zero algorithm change — more than Track A.
 
 ---
 
-## Next Step: Batch Controller Implementation
+## Future Work
 
-The characterization is complete. The implementation target is Track A:
-a medoid-block BF16 GEMM inside `iterate_to_fixed_point` using
-`cblas_gemm_bf16bf16f32` with `arch_prctl` at startup, INT8 for SIFT
-(natively uint8, lossless) and BF16 for GIST (0.90% recall drop,
-within tolerance).
+The characterization is complete. Track A is now implemented and
+measured (see Phase 9). The controller uses a medoid-block BF16 GEMM
+via `cblas_gemm_bf16bf16f32` with `arch_prctl` at startup, applied at
+hop 0 for all concurrent queries, for both SIFT1M and GIST1M. An INT8
+hop-0 path for SIFT1M (natively uint8, exactly lossless) remains future
+work.
+
+Two further open items:
+
+- **Third-dataset convergence.** GIST1M's long, gradual sharing decay
+  (sharing hovers near 5% from hop 7 to ~30 rather than dropping off a
+  cliff) may partly reflect 960d distance concentration. A mid-dimensional
+  set such as SISAP Wikipedia (1024d) would confirm whether the
+  dimensionality law holds in between, or bound it.
+- **INT8 hop-0 path** for SIFT1M's native uint8 vectors — exactly
+  lossless, and a fairer matrix-shape test of the AMX dispatch threshold
+  at 128d.
 
 ---
 
