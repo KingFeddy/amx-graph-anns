@@ -2,7 +2,9 @@
  * amx_large_test.cpp
  * Demonstrates AMX actually engaging at large matrix sizes.
  * Shows the minimum matrix size needed to trigger AMX dispatch.
- * This proves AMX works on this hardware but graph ANNS matrices are too small.
+ * Establishes the dispatch threshold: 128d graph matrices (32x1000x128) are
+ * marginal and route to AVX-512 BF16, while 960d matrices (32x1000x960) do
+ * engage AMX. Dimensionality, not just matrix shape, determines dispatch.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -135,8 +137,10 @@ int main() {
         mkl_free(A_bf16); mkl_free(B_bf16);
     }
 
-    printf("\nConclusion: Graph ANNS matrices (M=32) are too small for AMX dispatch.\n");
-    printf("AMX fires at large square matrices (LLM workloads, not ANNS).\n");
-    printf("This is the fundamental reason graph ANNS is AMX-resistant.\n");
+    printf("\nConclusion: dispatch depends on the K (dimension) axis.\n");
+    printf("128d graph matrices (32x1000x128) route to AVX-512 BF16;\n");
+    printf("960d graph matrices (32x1000x960) engage AMX at 3.52x.\n");
+    printf("Graph ANNS is AMX-resistant not because matrices are too small,\n");
+    printf("but because the high-sharing window (hop 0) is a tiny runtime fraction.\n");
     return 0;
 }
