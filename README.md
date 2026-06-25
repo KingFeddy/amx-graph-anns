@@ -30,8 +30,9 @@ for the full discovery and verification.
 
 ## Build & Run
 
-**Entry point:** the batch controller is `amx/track_a_impl.cpp` (the method)
-plus `amx/track_a_search.cpp` (the benchmark driver). Start there.
+**Entry point:** the batch controller is `amx/medoid_batch_controller.cpp`
+(the method) plus `amx/medoid_batch_benchmark.cpp` (the benchmark driver).
+Start there.
 
 Prerequisites: Intel oneAPI (MKL + compiler) and DiskANN 0.7.0 built with the
 instrumentation patch at `~/DiskANN` (see Reproducibility below).
@@ -40,7 +41,7 @@ instrumentation patch at `~/DiskANN` (see Reproducibility below).
 source /opt/intel/oneapi/setvars.sh
 
 g++ -O3 -march=native -fopenmp -std=c++17 \
-    amx/track_a_search.cpp amx/track_a_impl.cpp \
+    amx/medoid_batch_benchmark.cpp amx/medoid_batch_controller.cpp \
     -I$HOME/DiskANN/include -I/opt/intel/oneapi/mkl/latest/include \
     -L$HOME/DiskANN/build/src -L/opt/intel/oneapi/mkl/latest/lib \
     -L/opt/intel/oneapi/compiler/2026.0/lib \
@@ -48,10 +49,10 @@ g++ -O3 -march=native -fopenmp -std=c++17 \
     -lpthread -lm -ldl -laio \
     -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib \
     -Wl,-rpath,/opt/intel/oneapi/compiler/2026.0/lib \
-    -o amx/track_a_search
+    -o amx/medoid_batch_benchmark
 
 # Run (GIST1M; T=1 is where the effect is measurable):
-./amx/track_a_search \
+./amx/medoid_batch_benchmark \
     --index_path_prefix ~/data/gist/gist_index \
     --query_file ~/data/gist/gist_query.bin \
     --gt_file ~/data/gist/gist_groundtruth.bin \
@@ -297,7 +298,7 @@ favorable, and the target the batch controller is chasing.
 GIST1M recall is lower at the same L=100 because the 960d graph is
 sparser (avg degree 24.3 vs 30.2) and search is harder; recall is
 tunable with higher L and does not affect sharing structure. (The
-88.50% here is the T=128 peak-throughput run; the Track A comparison
+88.50% here is the T=128 peak-throughput run; the medoid-batch comparison
 in Phase 9 uses an 88.31% baseline measured at T=32, L=100 — the same
 config the controller is benchmarked against. The small difference is
 thread-count / run variance, not an algorithmic change.)
@@ -393,7 +394,7 @@ bottleneck.
 
 **Reconciliation with measured results (see Phase 9):** the prediction
 above is about where AMX compute leverage is highest. The *measured*
-end-to-end benefit of the Track A controller, however, is statistically
+end-to-end benefit of the medoid-batch controller, however, is statistically
 significant only at very low thread counts (T=1: 1.007x GIST1M, 1.004x
 SIFT1M, both beyond the 30-iteration noise band), and falls within
 measurement noise at T=32. The reason is that hop-0 is only ~0.9% of
@@ -587,7 +588,7 @@ Traversal path is stable: the tiny precision difference does not
 meaningfully change which nodes get visited. Safe for production use.
 
 **Implementation note:** the table above is the *simulated* full-search
-BF16 estimate (0.90% drop). The shipped Track A controller applies BF16
+BF16 estimate (0.90% drop). The shipped medoid-batch controller applies BF16
 only at hop 0 (the medoid GEMM), not the whole search, so the measured
 end-to-end recall drop is much smaller: 0.11% on GIST1M (88.31% to 88.20%)
 and 0.00% on SIFT1M. SIFT1M is natively uint8, so an INT8 hop-0 path would
@@ -598,7 +599,7 @@ implementation uses BF16 for both datasets.
 
 ## Phase 8: Systematic Batching Exploration
 
-Seven alternative batching approaches were tested beyond Track A.
+Seven alternative batching approaches were tested beyond medoid hop-0 batching.
 All results include corrected Amdahl analysis using search-only
 VTune profiles (index loading excluded from runtime fractions).
 
@@ -606,7 +607,7 @@ VTune profiles (index loading excluded from runtime fractions).
 - SIFT1M: distance 39.9%, sync 27.7%, other 32.4%
 - GIST1M: distance ~74%, sync ~18%, other ~8%
 
-### Track A — Medoid-Block GEMM (Reference)
+### Medoid hop-0 batching — the reference approach
 
 Batch all queries' hop-0 evaluations into one BF16 GEMM.
 The medoid is the only structurally-guaranteed large batch point.
@@ -622,7 +623,7 @@ Extended to hops 0-19 (weighted AMX 1.213x due to rapid batch dilution):
 |---------|--------------------|-----------------------|--------|
 | GIST1M  | 22.5%              | 16.7%                 | 1.034x |
 
-### Track B — Node-Level Batching
+### Dynamic node-level batching
 
 **Hypothesis:** batch individual node expansions across queries that
 coincidentally visit the same node, regardless of hop depth.
@@ -652,7 +653,7 @@ traverse similar graph regions, increasing per-node batch size.
 
 Clustering dramatically improves per-node coverage (8.8% → 55.2% at K=5)
 but average batch size per hot node stays at only 7.6 queries.
-AMX speedup at batch=7: 1.2x. Amdahl: 1.108x < Track A's 1.034x.
+AMX speedup at batch=7: 1.2x. Amdahl: 1.108x < medoid hop-0 batching's 1.034x.
 
 **Conclusion:** DEAD END. Coverage improves but batch size per node
 stays too small for AMX to fire effectively. Even clustered queries
@@ -673,7 +674,7 @@ Corrected per-hop batch sizes:
 - Hop 2+: 1.1 queries/node → 1.02x AMX
 
 Weighted AMX across all hops: 1.063x. End-to-end: 1.011x after
-1.5% barrier overhead at T=32. Track A still wins.
+1.5% barrier overhead at T=32. Medoid hop-0 batching still wins.
 
 **Conclusion:** DEAD END. Epoch-sync does not fix the divergence problem
 — after hop 0, queries expand different nodes regardless of scheduling.
@@ -695,7 +696,7 @@ search runtime — **larger than the AMX-addressable window on SIFT1M.**
 
 Each node expansion copies neighbor IDs into scratch space unnecessarily.
 Replacing with const reference or span where neighbors are read-only
-would yield ~4-5% speedup with zero algorithm change — more than Track A.
+would yield ~4-5% speedup with zero algorithm change — more than medoid hop-0 batching.
 
 **Status:** identified, not yet implemented. Recommended as a quick win.
 
@@ -703,22 +704,22 @@ would yield ~4-5% speedup with zero algorithm change — more than Track A.
 
 | Approach                 | GIST1M Amdahl | Status      |
 |--------------------------|---------------|-------------|
-| Track A hop 0 only       | 1.008x        | Viable      |
-| Track A hops 0-19        | 1.034x        | Viable      |
+| Medoid hop-0 (hop 0 only)| 1.008x        | Viable      |
+| Medoid hop-0 (hops 0-19) | 1.034x        | Viable      |
 | Higher R (R=64)          | 1.060x        | Worse abs QPS |
 | Neighbor copy removal    | ~1.046x       | Unimplemented |
-| Track A + copy removal   | ~1.055x       | Best combined |
+| Medoid hop-0 + copy removal | ~1.055x    | Best combined |
 | Node-level batching      | ~1.01x        | Dead end    |
 | Query clustering K=5     | 1.108x*       | Dead end (SIFT wins) |
 | Epoch-synchronous        | 1.011x        | Dead end    |
 | Re-rank batching         | N/A           | Dead end    |
 
-*Query clustering Amdahl is higher than Track A on paper but lower in
+*Query clustering Amdahl is higher than medoid hop-0 batching on paper but lower in
  practice because the batch/node size is too small for AMX to fire.
 
 ---
 
-## Phase 9: Track A Batch Controller — Implementation and Measurement
+## Phase 9: Medoid Hop-0 Batch Controller — Implementation and Measurement
 
 The characterization's implementation target, now built and measured.
 
@@ -739,7 +740,7 @@ Two-phase restructuring of DiskANN's `search_with_optimized_layout`
   neighbors visited, and runs normal independent traversal from hop 1.
 
 The controller adds no modification to existing DiskANN functions; it is
-a new `search_batch_track_a` method plus a benchmark driver.
+a new `search_batch_medoid_hop0` method plus a benchmark driver.
 
 ### arch_prctl confirmed firing
 
@@ -765,7 +766,7 @@ not just in the Amdahl projection.
 stddev with a noise-aware verdict (speedup is "beyond noise" only if its
 distance from 1.0 exceeds the combined coefficient of variation):
 
-| Dataset | T  | Baseline QPS    | Track A QPS     | Speedup | Noise band | Verdict             |
+| Dataset | T  | Baseline QPS    | Medoid-batch QPS | Speedup | Noise band | Verdict             |
 |---------|----|-----------------|-----------------|---------|------------|---------------------|
 | GIST1M  | 1  | 912 +/- 3       | 919 +/- 3       | 1.007x  | +/-0.50%   | faster beyond noise |
 | GIST1M  | 32 | 20,697 +/- 436  | 20,638 +/- 377  | 0.997x  | +/-2.8%    | within noise        |
@@ -774,7 +775,7 @@ distance from 1.0 exceeds the combined coefficient of variation):
 
 ### Recall preserved
 
-| Dataset | Baseline | Track A | Drop  |
+| Dataset | Baseline | Medoid-batch | Drop  |
 |---------|----------|---------|-------|
 | GIST1M  | 88.31%   | 88.20%  | 0.11% |
 | SIFT1M  | 99.11%   | 99.11%  | 0.00% |
@@ -840,7 +841,7 @@ quantified bound, not a large speedup number.
 
 ## Future Work
 
-The characterization is complete. Track A is now implemented and
+The characterization is complete. The medoid hop-0 batch controller is now implemented and
 measured (see Phase 9). The controller uses a medoid-block BF16 GEMM
 via `cblas_gemm_bf16bf16f32` with `arch_prctl` at startup, applied at
 hop 0 for all concurrent queries, for both SIFT1M and GIST1M. An INT8
