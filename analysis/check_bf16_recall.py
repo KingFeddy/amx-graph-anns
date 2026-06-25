@@ -51,7 +51,7 @@ def f32_to_bf16_to_f32(arr):
 
 def run_diskann_search(index_prefix, query_file, gt_file, result_path, K=10, L=100, T=64):
     cmd = [
-        '/home/devcloud/DiskANN/build/apps/search_memory_index',
+        os.path.expanduser('~/DiskANN/build/apps/search_memory_index'),
         '--data_type', 'float',
         '--dist_fn', 'l2',
         '--index_path_prefix', index_prefix,
@@ -90,7 +90,7 @@ def compute_recall(result_file_prefix, gt, K=10):
 print("=== BF16 Recall Check on GIST1M ===")
 print("Comparing Recall@10: FP32 baseline vs BF16-quantized queries\n")
 
-GIST_DIR = '/home/devcloud/data/gist'
+GIST_DIR = os.path.expanduser('~/data/gist')
 INDEX_PREFIX = f'{GIST_DIR}/gist_index'
 QUERY_FILE = f'{GIST_DIR}/gist_query.fvecs'
 GT_FILE = f'{GIST_DIR}/gist_groundtruth.ivecs'

@@ -75,14 +75,14 @@ int main() {
     printf("=== IVF Baseline — Granite Rapids (Xeon 6767P) ===\n\n");
 
     // Load data
-    auto base    = load_fvecs("/home/devcloud/data/sift/sift_base.fvecs", N_BASE);
-    auto queries = load_fvecs("/home/devcloud/data/sift/sift_query.fvecs", N_QUERIES);
+    auto base    = load_fvecs("data/sift/sift_base.fvecs", N_BASE);
+    auto queries = load_fvecs("data/sift/sift_query.fvecs", N_QUERIES);
     int gt_k;
-    auto gt = load_ivecs("/home/devcloud/data/sift/sift_groundtruth.ivecs", N_QUERIES, gt_k);
+    auto gt = load_ivecs("data/sift/sift_groundtruth.ivecs", N_QUERIES, gt_k);
 
     // Build or load index
     faiss::IndexIVFFlat* index;
-    const char* index_path = "/home/devcloud/data/sift/ivf_index.faiss";
+    const char* index_path = "data/sift/ivf_index.faiss";
     std::ifstream check(index_path);
     if (check.good()) {
         printf("Loading saved index from %s\n", index_path);
