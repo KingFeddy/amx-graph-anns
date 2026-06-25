@@ -28,6 +28,41 @@ for the full discovery and verification.
 
 ---
 
+## Build & Run
+
+**Entry point:** the batch controller is `amx/track_a_impl.cpp` (the method)
+plus `amx/track_a_search.cpp` (the benchmark driver). Start there.
+
+Prerequisites: Intel oneAPI (MKL + compiler) and DiskANN 0.7.0 built with the
+instrumentation patch at `~/DiskANN` (see Reproducibility below).
+
+```bash
+source /opt/intel/oneapi/setvars.sh
+
+g++ -O3 -march=native -fopenmp -std=c++17 \
+    amx/track_a_search.cpp amx/track_a_impl.cpp \
+    -I$HOME/DiskANN/include -I/opt/intel/oneapi/mkl/latest/include \
+    -L$HOME/DiskANN/build/src -L/opt/intel/oneapi/mkl/latest/lib \
+    -L/opt/intel/oneapi/compiler/2026.0/lib \
+    -ldiskann -lmkl_rt -liomp5 -lboost_program_options \
+    -lpthread -lm -ldl -laio \
+    -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib \
+    -Wl,-rpath,/opt/intel/oneapi/compiler/2026.0/lib \
+    -o amx/track_a_search
+
+# Run (GIST1M; T=1 is where the effect is measurable):
+./amx/track_a_search \
+    --index_path_prefix ~/data/gist/gist_index \
+    --query_file ~/data/gist/gist_query.bin \
+    --gt_file ~/data/gist/gist_groundtruth.bin \
+    --K 10 --L 100 --T 1
+```
+
+Environment flags: `TRACK_A_TIMING=1` prints phase timing; `TRACK_A_ITERS=N`
+sets the iteration count (default 15; 30 used for reported results).
+
+---
+
 ## Motivation
 
 Vector databases power modern AI — RAG pipelines, recommendation
