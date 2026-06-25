@@ -31,3 +31,4 @@ amx/track_a_search
 amx/amx_scaling_extended
 repomix-clean.txt
 amx/medoid_batch_benchmark
+ivf_baseline/ivf_baseline
