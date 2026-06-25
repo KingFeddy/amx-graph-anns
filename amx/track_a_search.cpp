@@ -1,6 +1,6 @@
 // track_a_search.cpp
 // Track A benchmark driver: baseline per-query search vs AMX BF16 GEMM batch controller
-// NJIT HSRI 2026 — Frederick Baah
+// NJIT HSRI 2026 — Frederick Rajakumar
 //
 // Measures QPS and Recall@K for both paths on the same index/queries.
 // arch_prctl is called at startup — required for AMX tile registers.

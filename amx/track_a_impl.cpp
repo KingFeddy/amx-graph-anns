@@ -1,9 +1,10 @@
 // track_a_impl.cpp
 // Track A batch controller: medoid-block BF16 GEMM at hop 0
-// NJIT HSRI 2026 — Frederick Baah
+// NJIT HSRI 2026 — Frederick Rajakumar
 //
 // Defines Index<T,TagT,LabelT>::search_batch_track_a.
-// Explicitly instantiated for <float, uint32_t, uint32_t> (GIST1M BF16 path).
+// Explicitly instantiated for <float, uint32_t, uint32_t> (float path; used
+// for both SIFT1M and GIST1M via BF16).
 // Compiled separately and linked with libdiskann.a; do NOT add to CMakeLists.
 
 #include <cstring>
