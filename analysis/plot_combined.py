@@ -9,7 +9,7 @@ out = sys.argv[3] if len(sys.argv) > 3 else "results/phase1_phase2_decay.png"
 fa = pd.read_csv(faiss_csv)
 va = pd.read_csv(vamana_csv)
 
-AMX_THRESHOLD = 0.10
+AMX_THRESHOLD = 0.05
 
 fig, ax = plt.subplots(figsize=(10, 5))
 

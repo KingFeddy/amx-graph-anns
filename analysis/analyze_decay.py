@@ -23,7 +23,7 @@ def compute_decay(df, min_queries=50):
         })
     return pd.DataFrame(results)
 
-def find_h_amx(res, threshold=0.10):
+def find_h_amx(res, threshold=0.05):
     above = res[res["sharing_rate"] >= threshold]
     return int(above["hop"].max()) if len(above) else 0
 
@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--label", default="HNSW")
     parser.add_argument("--output", required=True)
-    parser.add_argument("--threshold", type=float, default=0.10)
+    parser.add_argument("--threshold", type=float, default=0.05)
     args = parser.parse_args()
 
     print(f"Loading {args.input}...")
