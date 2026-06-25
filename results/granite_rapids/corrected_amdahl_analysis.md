@@ -33,13 +33,13 @@ search — the memory layout is already optimized.
 
 ## All Corrected Amdahl Numbers
 
-### Track A (hop-0 medoid GEMM only, AMX 3.52x at batch=1000)
+### Medoid hop-0 batching (hop-0 medoid GEMM only, AMX 3.52x at batch=1000)
 | Dataset | Window% of evals | Window% of runtime | Amdahl  |
 |---------|-----------------|-------------------|---------|
 | SIFT1M  | 1.3%            | 0.52%             | 1.004x  |
 | GIST1M  | 1.3%            | 0.96%             | 1.008x  |
 
-### Track A Extended (hops 0-19, weighted AMX 1.213x)
+### Medoid hop-0 batching, extended to hops 0-19 (weighted AMX 1.213x)
 | Dataset | Window% of evals | Window% of runtime | Amdahl  |
 |---------|-----------------|-------------------|---------|
 | GIST1M  | 22.5%           | 16.7%             | 1.034x  |
@@ -50,7 +50,7 @@ search — the memory layout is already optimized.
 | SIFT1M  | 4.4%     | 1.046x  |
 | GIST1M  | ~2-3%    | 1.020x  |
 
-### Combined Best Case (copy elimination + Track A full, GIST1M)
+### Combined best case (copy elimination + medoid hop-0 batching, full window, GIST1M)
 1.034x × 1.020x = **1.055x**
 
 ## Why Everything Is Bounded

@@ -1,5 +1,5 @@
-// track_a_search.cpp
-// Track A benchmark driver: baseline per-query search vs AMX BF16 GEMM batch controller
+// medoid_batch_benchmark.cpp
+// Benchmark driver: baseline per-query search vs the medoid hop-0 batch controller
 // NJIT HSRI 2026 — Frederick Rajakumar
 //
 // Measures QPS and Recall@K for both paths on the same index/queries.
@@ -49,15 +49,15 @@ double run_baseline(CIndex *idx,
 }
 
 // ------------------------------------------------------------------
-// Track A: one BF16 GEMM at hop 0, then per-query traversal from hop 1
+// Medoid hop-0 batching: one BF16 GEMM at hop 0, then per-query traversal from hop 1
 // ------------------------------------------------------------------
-double run_track_a(CIndex *idx,
+double run_medoid_hop0(CIndex *idx,
                    const float *queries, size_t N, size_t K, uint32_t L,
                    uint32_t T, size_t aligned_dim,
                    std::vector<uint32_t> &out)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
-    idx->search_batch_track_a(queries, N, K, L, T, aligned_dim, out.data());
+    idx->search_batch_medoid_hop0(queries, N, K, L, T, aligned_dim, out.data());
     auto t1 = std::chrono::high_resolution_clock::now();
     return std::chrono::duration<double>(t1 - t0).count();
 }
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     std::string index_path, query_file, gt_file;
     uint32_t K, L, T;
 
-    po::options_description desc("Track A Benchmark");
+    po::options_description desc("Medoid hop-0 batch controller benchmark");
     desc.add_options()
         ("index_path_prefix", po::value<std::string>(&index_path)->required(),
          "Index path prefix (same as search_memory_index)")
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
     std::vector<uint32_t> result_ta  (query_num * K, 0);
 
     run_baseline(idx, queries, query_num, K, L, T, query_aligned_dim, result_base);
-    run_track_a (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta);
+    run_medoid_hop0 (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta);
 
     // ----------------------------------------------------------------
     // Timed runs — interleaved repeated measurement with mean +/- stddev.
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 
     for (int r = 0; r < iters; r++) {
         double tb = run_baseline(idx, queries, query_num, K, L, T, query_aligned_dim, result_base);
-        double tt = run_track_a (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta);
+        double tt = run_medoid_hop0 (idx, queries, query_num, K, L, T, query_aligned_dim, result_ta);
         qps_base_samples.push_back((double)query_num / tb);
         qps_ta_samples.push_back((double)query_num / tt);
     }
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
     // ----------------------------------------------------------------
     // Results
     // ----------------------------------------------------------------
-    std::cout << "\n=== Track A Results (L=" << L
+    std::cout << "\n=== Medoid hop-0 batching results (L=" << L
               << " K=" << K << " T=" << T
               << ", " << iters << " iters) ===\n";
     std::cout.precision(2);
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
               << " +/- " << (uint64_t)sd_base
               << " (" << 100.0 * cv_base << "%)"
               << "  Recall@" << K << "=" << rec_base << "%\n";
-    std::cout << "Track A   QPS=" << (uint64_t)qps_ta
+    std::cout << "Medoid-batch QPS=" << (uint64_t)qps_ta
               << " +/- " << (uint64_t)sd_ta
               << " (" << 100.0 * cv_ta << "%)"
               << "  Recall@" << K << "=" << rec_ta   << "%\n";
@@ -255,9 +255,9 @@ int main(int argc, char *argv[])
     if (delta <= noise_band) {
         std::cout << "Verdict:  WITHIN NOISE (no measurable difference from baseline)\n";
     } else if (speedup > 1.0) {
-        std::cout << "Verdict:  Track A faster beyond noise band\n";
+        std::cout << "Verdict:  medoid-batch faster beyond noise band\n";
     } else {
-        std::cout << "Verdict:  Track A slower beyond noise band\n";
+        std::cout << "Verdict:  medoid-batch slower beyond noise band\n";
     }
 
     diskann::aligned_free(queries);

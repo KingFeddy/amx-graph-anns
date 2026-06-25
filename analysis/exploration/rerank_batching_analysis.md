@@ -1,4 +1,4 @@
-# Idea 4: Re-rank Stage Batching
+# Approach: Re-rank Stage Batching
 
 ## Hypothesis
 DiskANN SSD uses cheap PQ traversal then full-precision re-ranking.
@@ -42,5 +42,5 @@ Maximum possible speedup with perfect AMX on the full distance fraction:
 1 / (1 - 0.74) = 3.8x absolute ceiling (GIST1M). For SIFT1M, distance is
 only 39.9% of search, giving 1 / (1 - 0.399) = 1.66x. These are theoretical
 ceilings assuming AMX accelerates 100% of distance compute; the realized
-Track A window is far smaller (hop-0 only), which is why measured end-to-end
+the medoid-batch window is far smaller (hop-0 only), which is why measured end-to-end
 is ~1.0x. See corrected_amdahl_analysis.md.

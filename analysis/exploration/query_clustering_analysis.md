@@ -1,4 +1,4 @@
-# Idea 1: Query Clustering Before Graph Search
+# Approach: Query Clustering Before Graph Search
 
 ## Hypothesis
 Random queries scatter across the graph producing only 8.8% node coverage
@@ -22,15 +22,15 @@ Coverage is high but average batch size per hot node is only 7.6 queries
 even at K=5. AMX speedup at batch=7 is ~1.2x (from amx_init_test).
 
 ## Amdahl Results
-| K  | Coverage | Avg batch | AMX spd | Amdahl | Beats Track A? |
+| K  | Coverage | Avg batch | AMX spd | Amdahl | Beats medoid-batch? |
 |----|----------|-----------|---------|--------|----------------|
-| 5  | 58.6%    | 7.6       | 1.2x    | 1.108x | NO (vs Track A 1.034x projected) |
+| 5  | 58.6%    | 7.6       | 1.2x    | 1.108x | NO (vs medoid hop-0 batching 1.034x projected) |
 | 10 | 48.9%    | 7.0       | 1.2x    | 1.089x | NO             |
 
 ## Conclusion
 DEAD END. Coverage improves dramatically with clustering but batch size
 per node stays too small (~7) for AMX to fire effectively. High coverage
-x low AMX speedup < Track A's low coverage x high AMX speedup.
+x low AMX speedup < medoid-batch's low coverage x high AMX speedup.
 
 Root cause: even clustered queries spread across hundreds of distinct nodes
 within their local graph region. Structural divergence persists even among

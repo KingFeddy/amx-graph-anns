@@ -1,4 +1,4 @@
-# Track A Batch Controller — Measured Results
+# Medoid Hop-0 Batch Controller — Measured Results
 
 End-to-end measurement of the implemented medoid-block BF16 GEMM batch
 controller. This is the built-and-measured counterpart to the projections
@@ -24,7 +24,7 @@ The AMX-addressable region is ~0.9% of runtime — the characterization's
 central bound, confirmed in the working system.
 
 ## End-to-end results (30 interleaved iterations, mean +/- sample stddev)
-| Dataset | T  | Baseline QPS    | Track A QPS     | Speedup | Noise band | Verdict             |
+| Dataset | T  | Baseline QPS    | Medoid-batch QPS | Speedup | Noise band | Verdict             |
 |---------|----|-----------------|-----------------|---------|------------|---------------------|
 | GIST1M  | 1  | 912 +/- 3       | 919 +/- 3       | 1.007x  | +/-0.50%   | faster beyond noise |
 | GIST1M  | 32 | 20,697 +/- 436  | 20,638 +/- 377  | 0.997x  | +/-2.8%    | within noise        |
@@ -32,7 +32,7 @@ central bound, confirmed in the working system.
 | SIFT1M  | 32 | 108,154 +/- 1129| 105,779 +/- 7949| 0.978x  | +/-7.6%    | within noise        |
 
 ## Recall preserved
-| Dataset | Baseline | Track A | Drop  |
+| Dataset | Baseline | Medoid-batch | Drop  |
 |---------|----------|---------|-------|
 | GIST1M  | 88.31%   | 88.20%  | 0.11% |
 | SIFT1M  | 99.11%   | 99.11%  | 0.00% |
@@ -41,11 +41,11 @@ BF16 applied only at hop 0, so the measured drop is far below the simulated
 full-search BF16 estimate (0.90%, see amx_precision_findings.md).
 
 Note on baseline figures: the 88.31% (GIST1M) and 99.11% (SIFT1M) baselines
-here are from the Track A comparison run at T=32, L=100. The threading-baseline
+here are from the medoid-batch comparison run at T=32, L=100. The threading-baseline
 files (gist_baseline.md, vamana_baseline.md) report slightly different recall
 (88.50%, 99.14%) because they are separate peak-throughput sweeps across thread
 counts; the small differences are run/config variance, not an algorithmic
-change. The Track A comparison always uses baseline and Track A measured in the
+change. The comparison always measures baseline and the medoid-batch controller in the
 same run, so the reported speedup and recall-drop are internally consistent.
 
 ## Conclusion

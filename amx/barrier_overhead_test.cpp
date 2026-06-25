@@ -56,9 +56,9 @@ int main() {
     }
 
     printf("\n=== Interpretation ===\n");
-    printf("Idea A adds 104 barriers per 1000-query batch.\n");
+    printf("the epoch-synchronous approach adds 104 barriers per 1000-query batch.\n");
     printf("AMX projected gain on GIST1M: ~34%% of search time saved.\n");
-    printf("If overhead%% < 34%% -> Idea A viable.\n");
+    printf("If overhead%% < 34%% -> the epoch-synchronous approach viable.\n");
     printf("If overhead%% > 34%% -> sync kills the gain.\n");
     return 0;
 }

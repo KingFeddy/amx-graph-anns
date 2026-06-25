@@ -1,8 +1,8 @@
-// track_a_impl.cpp
-// Track A batch controller: medoid-block BF16 GEMM at hop 0
+// medoid_batch_controller.cpp
+// Medoid hop-0 batch controller: one BF16 GEMM over all queries at hop 0
 // NJIT HSRI 2026 — Frederick Rajakumar
 //
-// Defines Index<T,TagT,LabelT>::search_batch_track_a.
+// Defines Index<T,TagT,LabelT>::search_batch_medoid_hop0.
 // Explicitly instantiated for <float, uint32_t, uint32_t> (float path; used
 // for both SIFT1M and GIST1M via BF16).
 // Compiled separately and linked with libdiskann.a; do NOT add to CMakeLists.
@@ -27,7 +27,7 @@
 #define MAX_POINTS_FOR_USING_BITSET 10000000
 
 template <typename T, typename TagT, typename LabelT>
-void diskann::Index<T, TagT, LabelT>::search_batch_track_a(
+void diskann::Index<T, TagT, LabelT>::search_batch_medoid_hop0(
     const T  *queries,      // N x aligned_dim, row-major
     size_t    N,            // query count
     size_t    K,            // top-K
@@ -246,5 +246,5 @@ void diskann::Index<T, TagT, LabelT>::search_batch_track_a(
 
 // Explicit instantiation — BF16 path, float only (GIST1M primary target).
 // SIFT1M (uint8) would need INT8 GEMM; that is future work.
-template void diskann::Index<float, uint32_t, uint32_t>::search_batch_track_a(
+template void diskann::Index<float, uint32_t, uint32_t>::search_batch_medoid_hop0(
     const float *, size_t, size_t, uint32_t, uint32_t, size_t, uint32_t *);

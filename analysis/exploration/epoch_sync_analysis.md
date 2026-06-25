@@ -1,14 +1,14 @@
 # Epoch-Synchronous Search — Full Analysis and Retraction
 
-(Explored as an alternative to Track A. Note: this is distinct from
-Track B / node-level batching, which is analyzed separately.)
+(Explored as an alternative to medoid hop-0 batching. Note: this is distinct from
+dynamic node-level batching, which is analyzed separately.)
 
 ## Initial Hypothesis
 Restructure DiskANN's search loop so all queries advance one hop per epoch
 in lockstep, enabling one BF16 GEMM per epoch covering all queries.
 
-Initial (wrong) projection: 1.449x end-to-end on GIST1M vs Track A's
-projected 1.034x full-window ceiling. (Track A's *measured* end-to-end
+Initial (wrong) projection: 1.449x end-to-end on GIST1M vs the medoid hop-0 batching
+projected 1.034x full-window ceiling. (The medoid-batch *measured* end-to-end
 result is ~1.007x at T=1 — see README Phase 9. The 1.192x figure used in
 earlier drafts was a superseded projection.)
 
@@ -36,7 +36,7 @@ Weighted AMX across all hops: **1.063x** (not 3.51x as initially assumed).
 - Realistic: **1.011x**
 
 ## Conclusion
-**RETRACTED.** Epoch-synchronous search does not beat Track A.
+**RETRACTED.** Epoch-synchronous search does not beat medoid hop-0 batching.
 Root cause: graph search diverges queries after hop 0. Epoch-sync adds
 104 barrier synchronization points without meaningfully increasing the
 per-node batch size beyond what already exists at hop 0.

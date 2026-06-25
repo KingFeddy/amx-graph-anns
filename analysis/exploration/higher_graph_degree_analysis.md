@@ -1,7 +1,7 @@
-# Idea 2: Higher Graph Degree R for Better AMX Matrices
+# Approach: Higher Graph Degree R for Better AMX Matrices
 
 ## Hypothesis
-Track A's hop-0 GEMM matrix is R x batch x D. Larger R means larger M
+The medoid hop-0 GEMM matrix is R x batch x D. Larger R means larger M
 dimension, improving AMX tile utilization. Rebuilt indexes at R=64, R=128.
 
 ## AMX Speedup Results (amx_r_sweep, single thread, batch=1000, arch_prctl enabled)

@@ -24,8 +24,8 @@ repeated for every hop of every query.
 ## Potential Fix
 Replace copy with const reference or span where the neighbor list is only
 read, not modified. This is a pure correctness-preserving refactor.
-Estimated speedup: 4-5% on SIFT1M (larger AMX improvement than Track A).
+Estimated speedup: 4-5% on SIFT1M (larger AMX improvement than medoid hop-0 batching).
 
 ## Status
 Identified but not implemented. Implementation risk: low (pure refactor).
-Recommended as Track C in future work.
+Recommended as neighbor-copy elimination in future work.

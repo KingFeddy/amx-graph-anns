@@ -27,7 +27,7 @@ int main() {
     mkl_set_num_threads(1);
     srand(42);
 
-    printf("=== Idea 2: Higher R AMX Speedup Test ===\n");
+    printf("=== Approach: Higher R AMX Speedup Test ===\n");
     printf("Graph degree R determines hop-0 matrix M dimension\n\n");
 
     int R_vals[] = {32, 64, 128};

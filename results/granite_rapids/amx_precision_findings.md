@@ -61,11 +61,11 @@ get visited.
 ## Measured Recall in the Shipped Controller
 
 The 0.90% above is the *simulated full-search* estimate (every distance
-computed in BF16). The shipped Track A controller applies BF16 only at
+computed in BF16). The shipped medoid hop-0 batch controller applies BF16 only at
 hop 0 (the medoid GEMM); all hop-1+ distances stay full-precision FP32.
 The measured end-to-end recall drop is therefore much smaller:
 
-| Dataset | FP32 baseline | Track A (BF16 hop-0) | Drop  |
+| Dataset | FP32 baseline | Medoid-batch (BF16 hop-0) | Drop  |
 |---------|---------------|----------------------|-------|
 | GIST1M  | 88.31%        | 88.20%               | 0.11% |
 | SIFT1M  | 99.11%        | 99.11%               | 0.00% |
