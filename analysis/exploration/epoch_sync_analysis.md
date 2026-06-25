@@ -1,4 +1,7 @@
-# Track B: Epoch-Synchronous Search — Full Analysis and Retraction
+# Epoch-Synchronous Search — Full Analysis and Retraction
+
+(Explored as an alternative to Track A. Note: this is distinct from
+Track B / node-level batching, which is analyzed separately.)
 
 ## Initial Hypothesis
 Restructure DiskANN's search loop so all queries advance one hop per epoch

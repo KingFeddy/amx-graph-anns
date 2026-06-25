@@ -36,6 +36,9 @@ Root cause: even clustered queries spread across hundreds of distinct nodes
 within their local graph region. Structural divergence persists even among
 similar queries.
 
-POTENTIAL FUTURE DIRECTION: Combine clustering with epoch-synchronous search
-(Track B). Clustered queries in epoch-sync would have both high coverage AND
-large batch sizes (all cluster members active simultaneously).
+Note: combining clustering with epoch-synchronous search was considered but
+is not pursued. Both components were independently shown insufficient —
+clustering's per-node batch stays ~7 queries (too small for AMX), and
+epoch-sync is retracted separately (see epoch_sync_analysis.md) because the
+divergence problem is in the node dimension, not the query dimension. The
+combination inherits both ceilings rather than escaping them.
