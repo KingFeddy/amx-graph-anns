@@ -57,3 +57,20 @@ Simulated BF16 quantization (truncate lower 16 mantissa bits of FP32):
 Traversal path is stable under BF16: avg dist comparisons nearly identical
 (2545 vs 2547), confirming BF16 does not meaningfully change which nodes
 get visited.
+
+## Measured Recall in the Shipped Controller
+
+The 0.90% above is the *simulated full-search* estimate (every distance
+computed in BF16). The shipped Track A controller applies BF16 only at
+hop 0 (the medoid GEMM); all hop-1+ distances stay full-precision FP32.
+The measured end-to-end recall drop is therefore much smaller:
+
+| Dataset | FP32 baseline | Track A (BF16 hop-0) | Drop  |
+|---------|---------------|----------------------|-------|
+| GIST1M  | 88.31%        | 88.20%               | 0.11% |
+| SIFT1M  | 99.11%        | 99.11%               | 0.00% |
+
+Note: the controller uses BF16 for both datasets, not INT8 for SIFT. SIFT1M
+is natively uint8, so an INT8 hop-0 path would be exactly lossless; that is
+identified as future work. Empirically, BF16 on SIFT already shows 0.00%
+measured drop. See README Phase 9 for the full measurement.
