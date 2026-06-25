@@ -105,9 +105,12 @@ High sharing means multiple queries evaluate the same node at the
 same depth — those computations can be fused into one AMX GEMM.
 
 **H_AMX** — the last hop where sharing rate exceeds the 5% usefulness
-threshold. The batch controller uses AMX GEMM for hops 0 through
-H_AMX and falls back to per-query GEMV beyond that depth. H_AMX is
-the size of the AMX opportunity window. All H_AMX values in this
+threshold. H_AMX measures the size of the AMX opportunity window: in
+principle a controller could batch hops 0 through H_AMX with AMX GEMM and
+fall back to per-query GEMV beyond that depth. The controller actually
+implemented in this repo (Phase 9) uses only the structurally-guaranteed
+hop-0 batch; batching the full 0..H_AMX window remains a projection, not a
+built system. All H_AMX values in this
 document are computed at the 5% threshold from clean 1000-query hop
 logs using analysis/analyze_decay.py --threshold 0.05.
 
