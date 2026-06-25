@@ -33,8 +33,8 @@ is designed to guide each query to its own target — divergence is intentional.
 
 ## Amdahl Projection
 At AMX-eligible threshold (>=32 queries/node):
-- SIFT1M: 2.6% coverage → 1.01x end-to-end (vs Track A 1.028x)
-- GIST1M: 6.7% coverage → 1.05x end-to-end (vs Track A 1.192x)
+- SIFT1M: 2.6% coverage → 1.01x end-to-end (vs Track A 1.004x projected)
+- GIST1M: 6.7% coverage → 1.05x end-to-end (vs Track A 1.034x projected)
 
 ## Conclusion
 DEAD END at 1000 queries. Coverage is too sparse because graph search

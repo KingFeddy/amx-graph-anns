@@ -4,7 +4,10 @@
 Restructure DiskANN's search loop so all queries advance one hop per epoch
 in lockstep, enabling one BF16 GEMM per epoch covering all queries.
 
-Initial (wrong) projection: 1.449x end-to-end on GIST1M vs Track A's 1.192x.
+Initial (wrong) projection: 1.449x end-to-end on GIST1M vs Track A's
+projected 1.034x full-window ceiling. (Track A's *measured* end-to-end
+result is ~1.007x at T=1 — see README Phase 9. The 1.192x figure used in
+earlier drafts was a superseded projection.)
 
 ## The Critical Error
 The initial analysis assumed each epoch produces a 1000×32×960 matrix

@@ -24,7 +24,7 @@ even at K=5. AMX speedup at batch=7 is ~1.2x (from amx_init_test).
 ## Amdahl Results
 | K  | Coverage | Avg batch | AMX spd | Amdahl | Beats Track A? |
 |----|----------|-----------|---------|--------|----------------|
-| 5  | 58.6%    | 7.6       | 1.2x    | 1.108x | NO (vs 1.192x) |
+| 5  | 58.6%    | 7.6       | 1.2x    | 1.108x | NO (vs Track A 1.034x projected) |
 | 10 | 48.9%    | 7.0       | 1.2x    | 1.089x | NO             |
 
 ## Conclusion
