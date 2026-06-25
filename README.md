@@ -659,7 +659,7 @@ traverse similar graph regions, increasing per-node batch size.
 
 Clustering dramatically improves per-node coverage (8.8% → 55.2% at K=5)
 but average batch size per hot node stays at only 7.6 queries.
-AMX speedup at batch=7: 1.2x. Amdahl: 1.108x < medoid hop-0 batching's 1.034x.
+AMX speedup at batch=7: only 1.2x. The projected Amdahl is 1.108x — higher than medoid hop-0 batching's 1.034x on paper — but that projection assumes AMX fires efficiently at batch=7, which it does not. At the realistic batch=7 speedup the approach loses, and it adds clustering overhead the medoid approach does not have.
 
 **Conclusion:** DEAD END. Coverage improves but batch size per node
 stays too small for AMX to fire effectively. Even clustered queries
