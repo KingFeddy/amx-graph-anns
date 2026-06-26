@@ -2,7 +2,7 @@ diff --git a/include/ann_exception.h b/include/ann_exception.h
 index 6b81373c..4d9d5887 100644
 --- a/include/ann_exception.h
 +++ b/include/ann_exception.h
-@@ -2,9 +2,11 @@
+@@ -2,9 +2,10 @@
  // Licensed under the MIT license.
  
  #pragma once
@@ -10,7 +10,6 @@ index 6b81373c..4d9d5887 100644
  #include <string>
  #include <stdexcept>
  #include <system_error>
-+#include <cstdint>
  #include "windows_customizations.h"
  
  #ifndef _WINDOWS

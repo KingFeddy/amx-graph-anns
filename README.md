@@ -814,8 +814,11 @@ quantified bound, not a large speedup number.
 **AMX helps when:**
 - The algorithm has a shared entry structure (Vamana's fixed medoid)
 - Concurrent query count is >= 10, with full benefit at 1000+
-- Operating at moderate thread counts (T=32-64) where distance
-  computation still dominates runtime
+- Operating at low concurrency: the implemented hop-0 controller showed
+  measurable end-to-end benefit only at T=1 (within noise at T=32). AMX has
+  the most theoretical compute leverage at moderate thread counts (T=32-64,
+  where distance computation still dominates), but that leverage did not
+  translate into measured end-to-end speedup at those thread counts
 - Especially at high dimensionality (768d+), where vectors are too
   large for accidental cache sharing and explicit batching is the
   only amortization mechanism
