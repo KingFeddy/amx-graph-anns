@@ -38,11 +38,11 @@ was MKL AVX-512 vs naive loop, not AMX. Fixed in current version.
 
 ## AMX Dispatch Threshold (Matrix Size)
 MKL only dispatches to AMX tiles above a minimum matrix size.
-From amx_large_test.cpp sweep:
+From amx_init_test.cpp sweep (arch_prctl enabled):
 - 32×1000×128 (ANNS hop-0 SIFT): routes to AVX-512 BF16
 - 32×1000×960 (ANNS hop-0 GIST): 3.52x → AMX firing
-- 1024×1024×1024 (LLM-style): 4.15x → AMX firing strongly
-- 2048×2048×2048: 4.92x → AMX firing at full throughput
+- 1024×1024×1024 (LLM-style): ~4.1x → AMX firing strongly
+- 2048×2048×2048: ~5.0x → AMX firing at full throughput
 
 The K dimension (DIM=960) is what pushes GIST1M into AMX territory.
 SIFT1M at 128d stays in AVX-512 even with arch_prctl.
