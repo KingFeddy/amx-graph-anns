@@ -188,10 +188,10 @@ int main(int argc, char *argv[])
     // Timed runs — interleaved repeated measurement with mean +/- stddev.
     // Interleaving (base, ta, base, ta, ...) so any drift hits both paths
     // equally. Reports QPS mean/stddev and a noise-aware verdict.
-    // Override iteration count with TRACK_A_ITERS (default 15).
+    // Override iteration count with MEDOID_ITERS (default 15).
     // ----------------------------------------------------------------
     int iters = 15;
-    if (const char *e = std::getenv("TRACK_A_ITERS")) {
+    if (const char *e = std::getenv("MEDOID_ITERS")) {
         int v = std::atoi(e);
         if (v > 1) iters = v;
     }

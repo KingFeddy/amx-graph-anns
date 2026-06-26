@@ -62,7 +62,7 @@ g++ -O3 -march=native -fopenmp -std=c++17 \
     --K 10 --L 100 --T 1
 ```
 
-Environment flags: `TRACK_A_TIMING=1` prints phase timing; `TRACK_A_ITERS=N`
+Environment flags: `MEDOID_TIMING=1` prints phase timing; `MEDOID_ITERS=N`
 sets the iteration count (default 15; 30 used for reported results).
 
 ---

@@ -38,9 +38,9 @@ void diskann::Index<T, TagT, LabelT>::search_batch_medoid_hop0(
 {
     if (N == 0) return;
 
-    // Optional phase timing — set TRACK_A_TIMING=1 to enable. Off by default
+    // Optional phase timing — set MEDOID_TIMING=1 to enable. Off by default
     // so benchmark timed regions stay clean.
-    static const bool ta_timing = (std::getenv("TRACK_A_TIMING") != nullptr);
+    static const bool ta_timing = (std::getenv("MEDOID_TIMING") != nullptr);
     std::chrono::high_resolution_clock::time_point _t0, _t1, _t2;
     if (ta_timing) _t0 = std::chrono::high_resolution_clock::now();
 
@@ -238,7 +238,7 @@ void diskann::Index<T, TagT, LabelT>::search_batch_medoid_hop0(
         double p2 = std::chrono::duration<double, std::milli>(_t2 - _t1).count();
         double tot = p1 + p2;
         std::fprintf(stderr,
-            "[TRACK_A_TIMING] Phase1(setup+GEMM)=%.3f ms (%.2f%%)  "
+            "[MEDOID_TIMING] Phase1(setup+GEMM)=%.3f ms (%.2f%%)  "
             "Phase2(traversal)=%.3f ms (%.2f%%)  total=%.3f ms\n",
             p1, 100.0 * p1 / tot, p2, 100.0 * p2 / tot, tot);
     }

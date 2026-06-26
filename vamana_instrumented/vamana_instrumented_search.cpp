@@ -28,8 +28,8 @@ std::vector<std::vector<float>> load_fvecs(const std::string& path, int max_n = 
 }
 
 int main(int argc, char* argv[]) {
-    std::string base_path = argc > 1 ? argv[1] : "/home/kingfeddy/repos/anns_research/sift/sift_base.fvecs";
-    std::string query_path = argc > 2 ? argv[2] : "/home/kingfeddy/repos/anns_research/sift/sift_query.fvecs";
+    std::string base_path = argc > 1 ? argv[1] : "data/sift/sift_base.fvecs";
+    std::string query_path = argc > 2 ? argv[2] : "data/sift/sift_query.fvecs";
     std::string index_path = argc > 3 ? argv[3] : "vamana_sift";
     std::string out_path = argc > 4 ? argv[4] : "vamana_hop_log.csv";
 
