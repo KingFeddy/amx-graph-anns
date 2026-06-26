@@ -555,7 +555,8 @@ Confirmed via VTune hotspots:
 
 Confirmed via speedup:
 - AVX-512 BF16 theoretical max over FP32: ~2x (packs 2x data/register)
-- Measured 4.92x at 2048³ with arch_prctl — only possible with AMX tiles
+- Measured ~5.0x at 2048³ with arch_prctl — well above the ~2x AVX-512 BF16
+  ceiling, so only AMX tiles can produce it
 
 ### Finding 2 — FP32 Never Uses AMX
 
@@ -573,9 +574,9 @@ Sweep results (with arch_prctl, T=1):
 |---------------------|------------------|--------------|
 | 32×1000×128         | ANNS SIFT hop-0  | 1.62x        |
 | 32×1000×960         | ANNS GIST hop-0  | 3.52x        |
-| 512×512×512         | LLM small        | 3.41x        |
-| 1024×1024×1024      | LLM medium       | 4.12x        |
-| 2048×2048×2048      | LLM large        | 4.95x        |
+| 512×512×512         | LLM small        | ~4.1x        |
+| 1024×1024×1024      | LLM medium       | ~4.1x        |
+| 2048×2048×2048      | LLM large        | ~5.0x        |
 
 The K dimension (DIM) is the primary driver. GIST1M at 960d reaches
 the AMX-effective regime; SIFT1M at 128d is marginal.
